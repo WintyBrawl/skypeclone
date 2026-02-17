@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>голосовой чат · 4 пользователя</title>
+    <!-- Firebase SDK (compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #2b3e4f;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 12px;
+        }
+        .chat-container {
+            width: 1000px;
+            max-width: 100%;
+            background: #d9e2ec;
+            border: 2px solid #0a3147;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.5);
+        }
+        .header {
+            background: #1a4359;
+            color: #eaf1f8;
+            padding: 16px 20px;
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            border-bottom: 2px solid #0b2637;
+        }
+        .main-panels {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .left-panel {
+            width: 290px;
+            background: #c8d9eb;
+            padding: 20px 16px;
+            border-right: 2px solid #809bb3;
+        }
+        .right-panel {
+            flex: 1;
+            background: #e2ecf7;
+            padding: 20px;
+            min-width: 280px;
+        }
+        .info-card {
+            background: #b4cef0;
+            border: 2px solid #36648b;
+            border-radius: 24px;
+            padding: 20px 12px;
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .user-id-label {
+            font-size: 15px;
+            color: #123e5c;
+            margin-bottom: 6px;
+        }
+        .user-id-value {
+            background: #ffffff;
+            border: 2px solid #1e537b;
+            border-radius: 40px;
+            padding: 12px 8px;
+            font-family: monospace;
+            font-size: 20px;
+            font-weight: bold;
+            color: #02233b;
+            word-break: break-all;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #0a344f;
+            margin: 20px 0 12px 0;
+            border-bottom: 2px solid #587a9f;
+            padding-bottom: 5px;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        .input-field {
+            padding: 14px 16px;
+            font-size: 16px;
+            border: 2px solid #2e6291;
+            border-radius: 50px;
+            background: white;
+            outline: none;
+        }
+        .input-field:focus {
+            border-color: #ffb347;
+            background: #fffef7;
+        }
+        .btn {
+            background: #eef6ff;
+            border: 2px solid #1e5b8e;
+            border-radius: 40px;
+            padding: 14px 20px;
+            font-weight: 600;
+            font-size: 16px;
+            color: #0f334d;
+            cursor: pointer;
+            box-shadow: 3px 3px 0 #1b3f61;
+            transition: 0.03s linear;
+            width: 100%;
+        }
+        .btn:active {
+            transform: translate(3px, 3px);
+            box-shadow: none;
+        }
+        .btn:disabled {
+            opacity: 0.4;
+            transform: none;
+            box-shadow: 3px 3px 0 #1b3f61;
+            pointer-events: none;
+        }
+        .btn-join {
+            background: #b9e0b9;
+            border-color: #1e6b1e;
+            color: #003000;
+        }
+        .btn-leave {
+            background: #f3c2c2;
+            border-color: #a13d3d;
+            color: #420000;
+        }
+        .room-panel {
+            background: #d5e5fa;
+            border: 2px solid #3b6c9c;
+            border-radius: 30px;
+            padding: 18px;
+            margin: 16px 0;
+            text-align: center;
+        }
+        .room-url {
+            background: #fff;
+            padding: 12px;
+            border-radius: 50px;
+            border: 1px solid #2565a0;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        .log-container {
+            background: #102331;
+            color: #b4e0ff;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            padding: 18px;
+            border-radius: 16px;
+            height: 260px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            border: 2px solid #4280b0;
+            margin-top: 20px;
+        }
+        .log-line {
+            border-bottom: 1px solid #2f5577;
+            padding: 4px 0;
+            color: #c5e2ff;
+        }
+        .user-badge {
+            display: inline-block;
+            background: #316e9e;
+            color: white;
+            border-radius: 40px;
+            padding: 6px 14px;
+            margin: 4px 6px 4px 0;
+            font-size: 14px;
+            border: 1px solid #6ea5d4;
+        }
+        .status-badge {
+            background: #4f6b85;
+            color: white;
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 14px;
+        }
+        .member-list {
+            margin: 18px 0;
+            min-height: 70px;
+        }
+        .footer-note {
+            background: #adc5de;
+            padding: 8px 16px;
+            font-size: 12px;
+            border-top: 2px solid #537a9f;
+        }
+    </style>
+</head>
+<body>
+<div class="chat-container">
+    <div class="header">
+        🧢 голосовой чат · макс. 4 участника · подробные логи
+    </div>
+    <div class="main-panels">
+        <!-- левая панель: управление и комнаты -->
+        <div class="left-panel">
+            <div class="info-card">
+                <div class="user-id-label">мой ID (постоянный)</div>
+                <div class="user-id-value" id="myUserIdDisplay">загрузка...</div>
+            </div>
+
+            <div class="section-title">комната</div>
+            <input type="text" id="roomIdInput" class="input-field" placeholder="id комнаты (например: loft)" value="lobby">
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+                <button class="btn btn-join" id="joinRoomBtn">➕ войти</button>
+                <button class="btn btn-leave" id="leaveRoomBtn">✖ покинуть</button>
+            </div>
+
+            <div class="room-panel">
+                <div style="font-weight:600;">участники (до 4)</div>
+                <div id="membersContainer" class="member-list">
+                    <span class="status-badge">нет данных</span>
+                </div>
+                <div style="font-size:13px; margin-top:8px;">текущая комната: <span id="currentRoomSpan">—</span></div>
+            </div>
+
+            <div style="font-size:14px; color:#0f2d44; background: #b8d3f0; border-radius: 20px; padding: 10px;">
+                <div>🔊 голос передаётся при наличии микрофона</div>
+                <div style="margin-top: 6px;">🪵 логи помогут отладить баги</div>
+            </div>
+        </div>
+
+        <!-- правая панель: логи, статус -->
+        <div class="right-panel">
+            <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
+                <span><strong>статус:</strong> <span id="connectionIndicator">⚪ инициализация</span></span>
+                <span><strong>микрофон:</strong> <span id="micIndicator">⚫ запрос...</span></span>
+            </div>
+
+            <div style="margin-bottom: 10px; font-weight: 600;">📋 системные логи (ошибки, события)</div>
+            <div id="logPanel" class="log-container">
+                <div class="log-line">[sys] ожидание инициализации...</div>
+            </div>
+            <div style="margin-top: 10px; display: flex; gap: 10px;">
+                <button class="btn" id="copyLogBtn">📋 копировать логи</button>
+                <button class="btn" id="clearLogBtn">🗑 очистить логи</button>
+            </div>
+            <div class="footer-note">
+                голосовой чат на firebase + webrtc (mesh). для разговора нужно войти в одну комнату.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ------------------------------------------------------------------ 
+    // Firebase конфигурация (из задания)
+    const firebaseConfig = {
+        apiKey: "AIzaSyDTx2Y9ctiWp26YeMmAHAxDZd_gVI_ZMdw",
+        authDomain: "kcalls.firebaseapp.com",
+        databaseURL: "https://kcalls-default-rtdb.firebaseio.com",
+        projectId: "kcalls",
+        storageBucket: "kcalls.firebasestorage.app",
+        messagingSenderId: "990117089104",
+        appId: "1:990117089104:web:278a42c037e975ebb76655",
+        measurementId: "G-TK6GVEX9G5"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // ------------------------------------------------------------------ 
+    // Глобальные переменные и утилиты
+    const myUserId = 'user_' + Math.random().toString(36).substring(2, 8); // короткий читаемый
+    document.getElementById('myUserIdDisplay').innerText = myUserId;
+
+    let localStream = null;
+    let peerConnections = {}; // userId -> RTCPeerConnection
+    let currentRoom = null;   // комната, в которой находимся
+    let roomMembers = [];      // список участников комнаты (включая себя)
+
+    // элементы
+    const logPanel = document.getElementById('logPanel');
+    const connectionIndicator = document.getElementById('connectionIndicator');
+    const micIndicator = document.getElementById('micIndicator');
+    const membersContainer = document.getElementById('membersContainer');
+    const currentRoomSpan = document.getElementById('currentRoomSpan');
+    const joinBtn = document.getElementById('joinRoomBtn');
+    const leaveBtn = document.getElementById('leaveRoomBtn');
+    const roomIdInput = document.getElementById('roomIdInput');
+    const copyLogBtn = document.getElementById('copyLogBtn');
+    const clearLogBtn = document.getElementById('clearLogBtn');
+
+    // ------------------------------------------------------------------ 
+    // Функция логирования (все в панель + console)
+    function addLog(message, isError = false) {
+        const prefix = isError ? '❌' : '➡️';
+        const time = new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const line = document.createElement('div');
+        line.className = 'log-line';
+        line.innerHTML = `[${time}] ${prefix} ${message}`;
+        if (isError) line.style.color = '#ffaeae';
+        logPanel.appendChild(line);
+        logPanel.scrollTop = logPanel.scrollHeight;
+        if (isError) console.error(message); else console.log(message);
+    }
+
+    // очистка логов
+    clearLogBtn.addEventListener('click', () => {
+        logPanel.innerHTML = '<div class="log-line">[sys] логи очищены</div>';
+    });
+
+    // копирование логов
+    copyLogBtn.addEventListener('click', () => {
+        let logText = '';
+        document.querySelectorAll('.log-line').forEach(div => {
+            logText += div.innerText + '\n';
+        });
+        navigator.clipboard.writeText(logText).then(() => {
+            addLog('логи скопированы в буфер');
+        }).catch(() => addLog('не удалось скопировать', true));
+    });
+
+    // ------------------------------------------------------------------ 
+    // Получение доступа к микрофону
+    async function initMicrophone() {
+        if (localStream) return localStream;
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            micIndicator.innerHTML = '🎤 доступен';
+            addLog('микрофон получен, аудиотреки готовы');
+            return localStream;
+        } catch (err) {
+            micIndicator.innerHTML = '❌ нет доступа';
+            addLog(`ошибка микрофона: ${err.message}`, true);
+            throw err;
+        }
+    }
+
+    // Вызываем сразу, но не ждём критично
+    initMicrophone().catch(() => {});
+
+    // ------------------------------------------------------------------ 
+    // Создание peer connection для конкретного пользователя
+    async function createPeerConnection(targetUserId) {
+        if (peerConnections[targetUserId]) {
+            addLog(`пир ${targetUserId} уже существует, закрываем старый`);
+            peerConnections[targetUserId].close();
+            delete peerConnections[targetUserId];
+        }
+
+        if (!localStream) {
+            addLog('нет локального потока, пробуем получить микрофон', true);
+            await initMicrophone();
+        }
+
+        const pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+
+        // добавляем локальные треки
+        if (localStream) {
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+        } else {
+            addLog('предупреждение: локальный стрим отсутствует', true);
+        }
+
+        // отправка ICE кандидатов в firebase (в комнату, для конкретного таргета)
+        pc.onicecandidate = (e) => {
+            if (e.candidate && currentRoom) {
+                const candidatePath = `rooms/${currentRoom}/candidates/${myUserId}/${targetUserId}`;
+                database.ref(candidatePath).push(e.candidate.toJSON())
+                    .catch(err => addLog(`ошибка отправки кандидата: ${err}`, true));
+            }
+        };
+
+        pc.ontrack = (e) => {
+            addLog(`получен аудиотрек от ${targetUserId}`);
+            // создаём скрытый audio и подключаем
+            let audioEl = document.getElementById(`audio_${targetUserId}`);
+            if (!audioEl) {
+                audioEl = document.createElement('audio');
+                audioEl.id = `audio_${targetUserId}`;
+                audioEl.autoplay = true;
+                audioEl.style.display = 'none';
+                document.body.appendChild(audioEl);
+            }
+            audioEl.srcObject = e.streams[0];
+        };
+
+        pc.oniceconnectionstatechange = () => {
+            addLog(`[ice state with ${targetUserId}] ${pc.iceConnectionState}`);
+            if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+                // возможно стоит удалить пира
+            }
+        };
+
+        peerConnections[targetUserId] = pc;
+        addLog(`peerConnection создан для ${targetUserId}`);
+        return pc;
+    }
+
+    // ------------------------------------------------------------------ 
+    // Закрыть все соединения
+    async function closeAllPeers() {
+        for (let uid of Object.keys(peerConnections)) {
+            peerConnections[uid].close();
+            delete peerConnections[uid];
+        }
+        peerConnections = {};
+        addLog('все пиры закрыты');
+    }
+
+    // ------------------------------------------------------------------ 
+    // Вход в комнату / выход
+    async function joinRoom(roomId) {
+        if (!roomId) { addLog('пустой id комнаты', true); return; }
+        if (currentRoom) {
+            addLog(`уже в комнате ${currentRoom}, сначала выйдите`, true);
+            return;
+        }
+
+        await initMicrophone().catch(() => {}); // пробуем ещё раз
+
+        currentRoom = roomId;
+        currentRoomSpan.innerText = roomId;
+        addLog(`попытка входа в комнату: ${roomId}`);
+
+        // ссылка на участников комнаты
+        const membersRef = database.ref(`rooms/${roomId}/members`);
+        // атомарно добавляем себя с timestamp
+        await membersRef.child(myUserId).set({ joined: Date.now() });
+
+        // слушаем список участников
+        membersRef.on('value', (snap) => {
+            const members = snap.val() || {};
+            const userIds = Object.keys(members);
+            roomMembers = userIds;
+            addLog(`обновление участников: ${userIds.join(', ') || 'никого'}`);
+
+            // отображаем
+            membersContainer.innerHTML = '';
+            userIds.forEach(uid => {
+                const span = document.createElement('span');
+                span.className = 'user-badge';
+                span.innerText = uid + (uid === myUserId ? ' (я)' : '');
+                membersContainer.appendChild(span);
+            });
+
+            // проверка лимита (до 4)
+            if (userIds.length > 4) {
+                addLog('⚠️ превышено 4 участника, но всё ещё работаем mesh', true);
+            }
+
+            // запускаем пиринг для новых участников (исключая себя)
+            userIds.forEach(async (uid) => {
+                if (uid === myUserId) return;
+                // если ещё нет соединения — инициируем
+                if (!peerConnections[uid]) {
+                    addLog(`новый участник ${uid}, создаём offer`);
+                    await createPeerConnection(uid);
+
+                    // создаём offer и отправляем
+                    const pc = peerConnections[uid];
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    // сохраняем offer в комнате
+                    await database.ref(`rooms/${roomId}/offers/${myUserId}/${uid}`).set(offer);
+                }
+            });
+
+            // чистим пиры, кто вышел
+            Object.keys(peerConnections).forEach(uid => {
+                if (!userIds.includes(uid)) {
+                    addLog(`участник ${uid} покинул, закрываем пир`);
+                    peerConnections[uid].close();
+                    delete peerConnections[uid];
+                    const audioEl = document.getElementById(`audio_${uid}`);
+                    if (audioEl) audioEl.remove();
+                }
+            });
+        });
+
+        // слушаем offers (ответы и answer)
+        const offersRef = database.ref(`rooms/${roomId}/offers`);
+        offersRef.on('child_added', (snap) => {
+            const fromUser = snap.key; // кто создал offer (remote)
+            if (fromUser === myUserId) return;
+            const offersForMe = snap.val();
+            if (offersForMe && offersForMe[myUserId]) {
+                // это offer, адресованный мне
+                const offer = offersForMe[myUserId];
+                addLog(`получен offer от ${fromUser} для меня`);
+                (async () => {
+                    if (!peerConnections[fromUser]) {
+                        await createPeerConnection(fromUser);
+                    }
+                    const pc = peerConnections[fromUser];
+                    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    // отправляем answer обратно
+                    await database.ref(`rooms/${roomId}/answers/${myUserId}/${fromUser}`).set(answer);
+                })().catch(e => addLog(`ошибка обработки offer: ${e.message}`, true));
+            }
+        });
+
+        // слушаем answers
+        const answersRef = database.ref(`rooms/${roomId}/answers`);
+        answersRef.on('child_added', (snap) => {
+            const fromUser = snap.key; // кто даёт answer (remote)
+            if (fromUser === myUserId) return;
+            const answersForMe = snap.val();
+            if (answersForMe && answersForMe[myUserId]) {
+                const answer = answersForMe[myUserId];
+                addLog(`получен answer от ${fromUser}`);
+                (async () => {
+                    const pc = peerConnections[fromUser];
+                    if (pc) {
+                        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                    } else {
+                        addLog(`нет peer для ${fromUser} при answer`, true);
+                    }
+                })().catch(e => addLog(`ошибка answer: ${e.message}`, true));
+            }
+        });
+
+        // слушаем кандидатов
+        const candidatesRef = database.ref(`rooms/${roomId}/candidates`);
+        candidatesRef.on('child_added', (snap) => {
+            const fromUser = snap.key; // кто отправляет кандидата
+            if (fromUser === myUserId) return;
+            const candidatesToMe = snap.val();
+            if (candidatesToMe && candidatesToMe[myUserId]) {
+                candidatesToMe[myUserId].forEach(candidateData => {
+                    if (peerConnections[fromUser]) {
+                        peerConnections[fromUser].addIceCandidate(new RTCIceCandidate(candidateData))
+                            .catch(e => addLog(`ошибка добавления ICE: ${e}`, true));
+                    }
+                });
+            }
+        });
+
+        connectionIndicator.innerHTML = '🟢 в комнате';
+    }
+
+    // покинуть комнату
+    async function leaveRoom() {
+        if (!currentRoom) {
+            addLog('вы не в комнате', true);
+            return;
+        }
+        const roomId = currentRoom;
+        // удаляем себя из members
+        await database.ref(`rooms/${roomId}/members/${myUserId}`).remove();
+        // очистим offers/answers/candidates (опционально)
+        await database.ref(`rooms/${roomId}/offers/${myUserId}`).remove();
+        await database.ref(`rooms/${roomId}/answers/${myUserId}`).remove();
+        await database.ref(`rooms/${roomId}/candidates/${myUserId}`).remove();
+
+        // закрываем пиры
+        await closeAllPeers();
+        currentRoom = null;
+        currentRoomSpan.innerText = '—';
+        membersContainer.innerHTML = '<span class="status-badge">нет в комнате</span>';
+        connectionIndicator.innerHTML = '⚪ вне комнаты';
+        addLog(`вышли из комнаты ${roomId}`);
+    }
+
+    // обработчики кнопок
+    joinBtn.addEventListener('click', async () => {
+        const room = roomIdInput.value.trim();
+        if (!room) { addLog('введите id комнаты', true); return; }
+        if (currentRoom) {
+            addLog('сначала покиньте текущую комнату', true);
+            return;
+        }
+        await joinRoom(room);
+    });
+
+    leaveBtn.addEventListener('click', async () => {
+        await leaveRoom();
+    });
+
+    // при загрузке, почистить возможные остатки (на всякий)
+    window.addEventListener('beforeunload', () => {
+        if (currentRoom) {
+            database.ref(`rooms/${currentRoom}/members/${myUserId}`).remove();
+        }
+    });
+
+    addLog(`ваш ID: ${myUserId} — используйте для приглашения`);
+</script>
+</body>
+</html>
