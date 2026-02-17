@@ -372,6 +372,16 @@
             background: #4a4a4a;
         }
 
+        .debug-info {
+            background: #1b1f24;
+            color: #00aff0;
+            padding: 8px;
+            margin-top: 10px;
+            font-size: 12px;
+            font-family: monospace;
+            border: 2px solid #333333;
+        }
+
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -490,8 +500,11 @@
                     <button class="metro-btn metro-btn-red" id="leaveBtn">покинуть</button>
                     <button class="metro-btn" id="testMicBtn">тест микрофона</button>
                     
-                    <!-- Кнопка принудительного включения звука -->
                     <button class="audio-test-btn" id="forceAudioBtn">🔊 принудительно включить звук</button>
+                    
+                    <div class="debug-info" id="debugInfo">
+                        статус: ожидание...
+                    </div>
                 </div>
 
                 <div class="tile-members">
@@ -545,11 +558,8 @@
         let currentRoom = null;
         let processingOffers = new Set();
         let isInRoom = false;
-        let cleanupInterval = null;
-        let statusInterval = null;
-        
-        // Хранилище для аудиоэлементов
         let audioElements = new Map();
+        let reconnectAttempts = new Map(); // счетчик попыток переподключения
 
         const logPanel = document.getElementById('logPanel');
         const logContent = document.getElementById('logContent');
@@ -566,6 +576,7 @@
         const memberCount = document.getElementById('memberCount');
         const peerCount = document.getElementById('peerCount');
         const forceAudioBtn = document.getElementById('forceAudioBtn');
+        const debugInfo = document.getElementById('debugInfo');
         
         const fbStatus = document.getElementById('fbStatus');
         const fbStatusText = document.getElementById('fbStatusText');
@@ -573,21 +584,42 @@
         const peerStatus = document.getElementById('peerStatus');
 
         // ------------------------------------------------------------
+        // Обновление отладочной информации
+        function updateDebugInfo() {
+            let info = `пиры: ${peers.size}, аудио: ${audioElements.size}, `;
+            info += `состояние: ${isInRoom ? 'в комнате' : 'вне комнаты'}`;
+            
+            if (peers.size > 0) {
+                peers.forEach((pc, id) => {
+                    info += `\n${id}: ${pc.iceConnectionState}, ${pc.connectionState}`;
+                });
+            }
+            
+            debugInfo.innerText = info;
+        }
+
+        // ------------------------------------------------------------
         // Принудительное включение всех аудиоэлементов
         async function forcePlayAllAudio() {
             log('принудительное включение звука...', 'info');
+            let played = 0;
             
             for (let [userId, audio] of audioElements) {
                 try {
-                    await audio.play();
-                    log(`звук включен для ${userId}`, 'success');
+                    if (audio.paused) {
+                        await audio.play();
+                        log(`звук включен для ${userId}`, 'success');
+                        played++;
+                    } else {
+                        log(`аудио для ${userId} уже играет`, 'info');
+                    }
                 } catch (err) {
                     log(`ошибка включения звука для ${userId}: ${err.message}`, 'error');
                     
                     // Пробуем пересоздать аудиоэлемент
                     if (peers.has(userId)) {
-                        const pc = peers.get(userId);
-                        if (pc.getReceivers) {
+                        try {
+                            const pc = peers.get(userId);
                             const receivers = pc.getReceivers();
                             receivers.forEach(receiver => {
                                 if (receiver.track && receiver.track.kind === 'audio') {
@@ -598,31 +630,35 @@
                                     document.body.appendChild(newAudio);
                                     
                                     audioElements.set(userId, newAudio);
-                                    newAudio.play().catch(e => log(`повторная ошибка: ${e.message}`, 'error'));
+                                    newAudio.play().catch(e => {});
                                 }
                             });
+                        } catch (e) {
+                            log(`ошибка пересоздания: ${e.message}`, 'error');
                         }
                     }
                 }
             }
+            
+            log(`всего включено: ${played} аудио`, 'info');
+            updateDebugInfo();
         }
 
         forceAudioBtn.addEventListener('click', forcePlayAllAudio);
 
         // ------------------------------------------------------------
-        // Периодическая проверка звука (каждые 2 секунды после входа)
-        function startAudioCheck() {
-            setInterval(() => {
-                if (isInRoom && audioElements.size > 0) {
-                    audioElements.forEach((audio, userId) => {
-                        if (audio.paused) {
-                            log(`аудио для ${userId} на паузе, пробуем включить`, 'warning');
-                            audio.play().catch(err => log(`ошибка: ${err.message}`, 'error'));
-                        }
-                    });
-                }
-            }, 2000);
-        }
+        // Периодическая проверка звука
+        setInterval(() => {
+            if (isInRoom && audioElements.size > 0) {
+                audioElements.forEach((audio, userId) => {
+                    if (audio.paused) {
+                        log(`аудио для ${userId} на паузе, пробуем включить`, 'warning');
+                        audio.play().catch(err => {});
+                    }
+                });
+            }
+            updateDebugInfo();
+        }, 2000);
 
         // ------------------------------------------------------------
         logToggleBtn.addEventListener('click', () => {
@@ -726,11 +762,8 @@
 
         async function createPeer(targetId) {
             if (peers.has(targetId)) {
-                log(`закрываем старый пир ${targetId}`, 'warning');
-                try {
-                    peers.get(targetId).close();
-                } catch (err) {}
-                peers.delete(targetId);
+                log(`использую существующий пир ${targetId}`, 'info');
+                return peers.get(targetId);
             }
 
             if (!localStream) {
@@ -738,11 +771,16 @@
                 try { await initMic(); } catch (err) {}
             }
 
+            log(`создание нового пира для ${targetId}`, 'info');
+            
             const pc = new RTCPeerConnection({
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
-                ]
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' }
+                ],
+                iceCandidatePoolSize: 10
             });
 
             if (localStream) {
@@ -767,69 +805,120 @@
             pc.ontrack = (e) => {
                 log(`получен аудиотрек от ${targetId}`, 'success');
                 
+                // Удаляем старый аудиоэлемент если есть
+                if (audioElements.has(targetId)) {
+                    try {
+                        audioElements.get(targetId).pause();
+                        audioElements.get(targetId).remove();
+                    } catch (err) {}
+                }
+                
                 // Создаем новый аудиоэлемент
                 const audio = new Audio();
                 audio.id = `audio_${targetId}`;
                 audio.autoplay = true;
                 audio.style.display = 'none';
-                
-                // Важно: устанавливаем srcObject до добавления в DOM
                 audio.srcObject = e.streams[0];
                 
-                // Пробуем воспроизвести сразу
+                // Пробуем воспроизвести
                 audio.play()
                     .then(() => log(`аудио от ${targetId} воспроизводится`, 'success'))
-                    .catch(err => {
-                        log(`ошибка автовоспроизведения для ${targetId}: ${err.message}`, 'warning');
-                        // Сохраняем для принудительного воспроизведения
-                    });
+                    .catch(err => log(`ошибка автовоспроизведения: ${err.message}`, 'warning'));
                 
                 document.body.appendChild(audio);
                 audioElements.set(targetId, audio);
                 
-                // Пробуем еще раз через секунду
-                setTimeout(() => {
-                    if (audio.paused) {
-                        audio.play().catch(err => log(`повторная попытка: ${err.message}`, 'warning'));
-                    }
-                }, 1000);
+                // Пробуем еще несколько раз
+                for (let i = 1; i <= 3; i++) {
+                    setTimeout(() => {
+                        if (audio.paused) {
+                            audio.play().catch(err => {});
+                        }
+                    }, i * 1000);
+                }
             };
 
             pc.oniceconnectionstatechange = () => {
                 log(`ice ${targetId}: ${pc.iceConnectionState}`, 'info');
+                
                 if (pc.iceConnectionState === 'connected') {
-                    // При установке соединения пробуем включить звук
+                    // При успешном соединении пробуем включить звук
                     setTimeout(forcePlayAllAudio, 500);
+                } else if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+                    // Пробуем переподключиться
+                    log(`потеряно соединение с ${targetId}, пробуем восстановить`, 'warning');
+                    
+                    let attempts = reconnectAttempts.get(targetId) || 0;
+                    if (attempts < 3) {
+                        reconnectAttempts.set(targetId, attempts + 1);
+                        setTimeout(() => {
+                            if (isInRoom && currentRoom) {
+                                log(`попытка переподключения ${targetId} (${attempts + 1}/3)`, 'info');
+                                peers.delete(targetId);
+                                // Инициируем новое соединение
+                                if (shouldCreateOffer(targetId)) {
+                                    createOffer(targetId);
+                                }
+                            }
+                        }, 2000);
+                    }
                 }
+                
                 updatePeerStats();
+                updateDebugInfo();
             };
 
             pc.onconnectionstatechange = () => {
                 log(`conn ${targetId}: ${pc.connectionState}`, 'info');
                 updatePeerStats();
+                updateDebugInfo();
             };
 
             peers.set(targetId, pc);
             updatePeerStats();
+            updateDebugInfo();
             return pc;
+        }
+
+        async function createOffer(targetId) {
+            try {
+                const pc = await createPeer(targetId);
+                
+                const offer = await pc.createOffer({
+                    offerToReceiveAudio: true
+                });
+                await pc.setLocalDescription(offer);
+                
+                await db.ref(`rooms/${currentRoom}/offers/${myUserId}/${targetId}`).set({
+                    type: offer.type,
+                    sdp: offer.sdp
+                });
+                log(`offer отправлен для ${targetId}`, 'success');
+                
+            } catch (err) {
+                log(`ошибка создания offer: ${err.message}`, 'error');
+            }
         }
 
         async function closeAllPeers() {
             for (let [id, pc] of peers) {
                 try {
                     pc.close();
-                    let audio = audioElements.get(id);
-                    if (audio) {
-                        audio.pause();
-                        audio.remove();
-                        audioElements.delete(id);
-                    }
-                } catch (err) {
-                    log(`ошибка закрытия пира ${id}: ${err.message}`, 'error');
-                }
+                } catch (err) {}
             }
+            
+            for (let [id, audio] of audioElements) {
+                try {
+                    audio.pause();
+                    audio.remove();
+                } catch (err) {}
+            }
+            
             peers.clear();
+            audioElements.clear();
+            reconnectAttempts.clear();
             updatePeerStats();
+            updateDebugInfo();
             log('все пиры закрыты', 'info');
         }
 
@@ -855,34 +944,6 @@
             }
         }
 
-        function startCleanupTimer(roomId) {
-            if (cleanupInterval) clearInterval(cleanupInterval);
-            
-            cleanupInterval = setInterval(async () => {
-                if (!isInRoom || !roomId) return;
-                
-                try {
-                    const snapshot = await db.ref(`rooms/${roomId}/members`).once('value');
-                    const members = snapshot.val() || {};
-                    const now = Date.now();
-                    
-                    for (const [uid, data] of Object.entries(members)) {
-                        if (data.joined && now - data.joined > 15000) {
-                            if (uid !== myUserId) {
-                                log(`удаляем неактивного участника ${uid}`, 'warning');
-                                await db.ref(`rooms/${roomId}/members/${uid}`).remove();
-                                await db.ref(`rooms/${roomId}/offers/${uid}`).remove();
-                                await db.ref(`rooms/${roomId}/answers/${uid}`).remove();
-                                await db.ref(`rooms/${roomId}/candidates/${uid}`).remove();
-                            }
-                        }
-                    }
-                } catch (err) {
-                    log(`ошибка очистки: ${err.message}`, 'error');
-                }
-            }, 5000);
-        }
-
         async function joinRoom(roomId) {
             if (!roomId) { log('введите id комнаты', 'error'); return; }
             
@@ -898,24 +959,13 @@
             currentRoomSpan.innerText = roomId;
             log(`вход в комнату: ${roomId}`, 'info');
 
+            // Добавляем себя с большим таймаутом
             await db.ref(`rooms/${roomId}/members/${myUserId}`).set({
-                joined: Date.now()
+                joined: Date.now(),
+                persistent: true
             });
 
-            startCleanupTimer(roomId);
-            
-            if (statusInterval) clearInterval(statusInterval);
-            statusInterval = setInterval(() => {
-                if (currentRoom && isInRoom) {
-                    db.ref(`rooms/${currentRoom}/members/${myUserId}`).update({
-                        joined: Date.now()
-                    });
-                }
-            }, 5000);
-
-            // Запускаем проверку звука
-            startAudioCheck();
-
+            // Слушаем участников
             db.ref(`rooms/${roomId}/members`).on('value', (snap) => {
                 if (!isInRoom) return;
                 
@@ -924,8 +974,14 @@
                 
                 const activeMembers = {};
                 for (const [uid, data] of Object.entries(members)) {
-                    if (data.joined && now - data.joined <= 20000) {
+                    // Увеличил таймаут до 30 секунд
+                    if (data.joined && now - data.joined <= 30000) {
                         activeMembers[uid] = data;
+                    } else if (uid !== myUserId) {
+                        // Не удаляем сразу, даем шанс на восстановление
+                        if (now - data.joined > 35000) {
+                            db.ref(`rooms/${roomId}/members/${uid}`).remove();
+                        }
                     }
                 }
                 
@@ -943,40 +999,24 @@
 
                 log(`участники: ${userIds.join(', ') || 'никого'}`, 'info');
 
+                // Создаём пиры для новых участников
                 userIds.forEach(async (uid) => {
                     if (uid === myUserId || !isInRoom) return;
                     
                     if (!peers.has(uid) && shouldCreateOffer(uid)) {
                         log(`новый участник ${uid}, создаю offer (я инициатор)`, 'info');
-                        
-                        try {
-                            const pc = await createPeer(uid);
-                            
-                            const offer = await pc.createOffer({
-                                offerToReceiveAudio: true
-                            });
-                            await pc.setLocalDescription(offer);
-                            
-                            await db.ref(`rooms/${roomId}/offers/${myUserId}/${uid}`).set({
-                                type: offer.type,
-                                sdp: offer.sdp
-                            });
-                            log(`offer отправлен для ${uid}`, 'success');
-                            
-                        } catch (err) {
-                            log(`ошибка создания offer: ${err.message}`, 'error');
-                        }
-                    } else if (!peers.has(uid)) {
-                        log(`жду offer от ${uid} (он инициатор)`, 'info');
+                        await createOffer(uid);
                     }
                 });
 
+                // Удаляем пиры вышедших участников
                 for (let uid of peers.keys()) {
                     if (!userIds.includes(uid)) {
-                        log(`участник ${uid} вышел`, 'info');
+                        log(`участник ${uid} вышел из комнаты`, 'info');
                         try {
                             peers.get(uid).close();
                             peers.delete(uid);
+                            
                             let audio = audioElements.get(uid);
                             if (audio) {
                                 audio.pause();
@@ -988,9 +1028,12 @@
                         }
                     }
                 }
+                
                 updatePeerStats();
+                updateDebugInfo();
             });
 
+            // Слушаем offers
             db.ref(`rooms/${roomId}/offers`).on('child_added', (snap) => {
                 if (!isInRoom) return;
                 
@@ -1006,11 +1049,8 @@
                     
                     (async () => {
                         try {
-                            if (!peers.has(fromUser)) {
-                                await createPeer(fromUser);
-                            }
+                            const pc = await createPeer(fromUser);
                             
-                            const pc = peers.get(fromUser);
                             if (pc.signalingState === 'stable') {
                                 await pc.setRemoteDescription(new RTCSessionDescription(offerData));
                                 log(`remote description установлен для ${fromUser}`, 'success');
@@ -1034,6 +1074,7 @@
                 }
             });
 
+            // Слушаем answers
             db.ref(`rooms/${roomId}/answers`).on('child_added', (snap) => {
                 if (!isInRoom) return;
                 
@@ -1059,6 +1100,7 @@
                 }
             });
 
+            // Слушаем candidates
             db.ref(`rooms/${roomId}/candidates`).on('child_added', (snap) => {
                 if (!isInRoom) return;
                 
@@ -1078,6 +1120,16 @@
             });
 
             log('успешно вошли в комнату', 'success');
+            updateDebugInfo();
+            
+            // Периодически обновляем свой статус
+            setInterval(() => {
+                if (currentRoom && isInRoom) {
+                    db.ref(`rooms/${currentRoom}/members/${myUserId}`).update({
+                        joined: Date.now()
+                    });
+                }
+            }, 5000);
         }
 
         async function leaveRoom() {
@@ -1088,15 +1140,6 @@
 
             const roomId = currentRoom;
             isInRoom = false;
-            
-            if (cleanupInterval) {
-                clearInterval(cleanupInterval);
-                cleanupInterval = null;
-            }
-            if (statusInterval) {
-                clearInterval(statusInterval);
-                statusInterval = null;
-            }
             
             try {
                 await db.ref(`rooms/${roomId}/members/${myUserId}`).remove();
@@ -1118,6 +1161,7 @@
                 memberCount.innerText = '0';
                 
                 log('вышли из комнаты', 'success');
+                updateDebugInfo();
                 
             } catch (err) {
                 log(`ошибка при выходе: ${err.message}`, 'error');
@@ -1146,15 +1190,10 @@
             if (currentRoom) {
                 db.ref(`rooms/${currentRoom}/members/${myUserId}`).remove();
             }
-            if (cleanupInterval) {
-                clearInterval(cleanupInterval);
-            }
-            if (statusInterval) {
-                clearInterval(statusInterval);
-            }
         });
 
         log(`ваш id: ${myUserId}`, 'info');
+        updateDebugInfo();
     </script>
 </body>
 </html>
