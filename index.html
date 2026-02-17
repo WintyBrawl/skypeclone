@@ -559,6 +559,9 @@
         
         // Флаг для отслеживания состояния
         let isInRoom = false;
+        
+        // Таймер для проверки живых участников
+        let cleanupInterval = null;
 
         // DOM элементы
         const logPanel = document.getElementById('logPanel');
@@ -803,15 +806,34 @@
         }
 
         // ------------------------------------------------------------
-        // Полная очистка всех слушателей Firebase
-        function cleanupAllListeners() {
-            if (currentRoom) {
-                // Удаляем все слушатели для текущей комнаты
-                db.ref(`rooms/${currentRoom}/members`).off();
-                db.ref(`rooms/${currentRoom}/offers`).off();
-                db.ref(`rooms/${currentRoom}/answers`).off();
-                db.ref(`rooms/${currentRoom}/candidates`).off();
-            }
+        // Очистка старых участников (тех, кто не обновлял свой статус)
+        function startCleanupTimer(roomId) {
+            if (cleanupInterval) clearInterval(cleanupInterval);
+            
+            cleanupInterval = setInterval(async () => {
+                if (!isInRoom || !roomId) return;
+                
+                try {
+                    const snapshot = await db.ref(`rooms/${roomId}/members`).once('value');
+                    const members = snapshot.val() || {};
+                    const now = Date.now();
+                    
+                    for (const [uid, data] of Object.entries(members)) {
+                        // Если участник не обновлял статус больше 30 секунд, удаляем его
+                        if (data.joined && now - data.joined > 30000) {
+                            if (uid !== myUserId) {
+                                log(`удаляем старого участника ${uid}`, 'warning');
+                                await db.ref(`rooms/${roomId}/members/${uid}`).remove();
+                                await db.ref(`rooms/${roomId}/offers/${uid}`).remove();
+                                await db.ref(`rooms/${roomId}/answers/${uid}`).remove();
+                                await db.ref(`rooms/${roomId}/candidates/${uid}`).remove();
+                            }
+                        }
+                    }
+                } catch (err) {
+                    log(`ошибка очистки: ${err.message}`, 'error');
+                }
+            }, 5000);
         }
 
         // ------------------------------------------------------------
@@ -832,17 +854,33 @@
             currentRoomSpan.innerText = roomId;
             log(`вход в комнату: ${roomId}`, 'info');
 
-            // Добавляем себя
+            // Добавляем себя с временной меткой
             await db.ref(`rooms/${roomId}/members/${myUserId}`).set({
                 joined: Date.now()
             });
+
+            // Запускаем таймер очистки
+            startCleanupTimer(roomId);
 
             // Слушаем участников
             db.ref(`rooms/${roomId}/members`).on('value', (snap) => {
                 if (!isInRoom) return;
                 
                 const members = snap.val() || {};
-                const userIds = Object.keys(members);
+                // Фильтруем только живых участников (joined не больше 30 секунд)
+                const now = Date.now();
+                const activeMembers = {};
+                
+                for (const [uid, data] of Object.entries(members)) {
+                    if (data.joined && now - data.joined <= 30000) {
+                        activeMembers[uid] = data;
+                    } else if (uid !== myUserId) {
+                        // Удаляем старых участников
+                        db.ref(`rooms/${roomId}/members/${uid}`).remove();
+                    }
+                }
+                
+                const userIds = Object.keys(activeMembers);
                 
                 memberCount.innerText = userIds.length;
                 
@@ -1006,6 +1044,12 @@
             const roomId = currentRoom;
             isInRoom = false;
             
+            // Останавливаем таймер очистки
+            if (cleanupInterval) {
+                clearInterval(cleanupInterval);
+                cleanupInterval = null;
+            }
+            
             try {
                 // Удаляем себя из members
                 await db.ref(`rooms/${roomId}/members/${myUserId}`).remove();
@@ -1016,7 +1060,10 @@
                 await db.ref(`rooms/${roomId}/candidates/${myUserId}`).remove();
                 
                 // Очищаем все слушатели
-                cleanupAllListeners();
+                db.ref(`rooms/${roomId}/members`).off();
+                db.ref(`rooms/${roomId}/offers`).off();
+                db.ref(`rooms/${roomId}/answers`).off();
+                db.ref(`rooms/${roomId}/candidates`).off();
                 
                 // Закрываем все пиры
                 await closeAllPeers();
@@ -1061,11 +1108,23 @@
             if (currentRoom) {
                 db.ref(`rooms/${currentRoom}/members/${myUserId}`).remove();
             }
+            if (cleanupInterval) {
+                clearInterval(cleanupInterval);
+            }
         });
 
         // ------------------------------------------------------------
         // Старт
         log(`ваш id: ${myUserId}`, 'info');
+        
+        // Периодически обновляем свой статус в комнате
+        setInterval(() => {
+            if (currentRoom && isInRoom) {
+                db.ref(`rooms/${currentRoom}/members/${myUserId}`).update({
+                    joined: Date.now()
+                });
+            }
+        }, 10000);
     </script>
 </body>
 </html>
