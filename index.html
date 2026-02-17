@@ -3,740 +3,962 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Голосовой чат · 4 пользователя</title>
+    <title>Skype · голосовой чат</title>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        /* Metro/Modern UI стиль */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            background: #1e3a5f;
-            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-family: 'Segoe UI', 'Segoe UI WP', 'Segoe UI Symbol', 'Helvetica Neue', sans-serif;
+            background: #1b1f24;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            padding: 12px;
+            padding: 20px;
+            position: relative;
         }
-        .chat-container {
-            width: 1000px;
-            max-width: 100%;
-            background: #d9e8f5;
-            border: 3px solid #0a2a44;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 20px 30px rgba(0,0,0,0.5);
-        }
-        .header {
-            background: #1f4a7a;
+
+        /* Кнопка показа логов в левом нижнем углу */
+        .log-toggle-btn {
+            position: fixed;
+            left: 20px;
+            bottom: 20px;
+            width: 50px;
+            height: 50px;
+            background: #2d2d2d;
+            border: 2px solid #404040;
             color: white;
-            padding: 16px 20px;
-            font-size: 22px;
-            font-weight: 600;
-            border-bottom: 3px solid #0d3452;
-        }
-        .main-grid {
-            display: flex;
-            flex-wrap: wrap;
-        }
-        .left-panel {
-            width: 300px;
-            background: #c8dcf2;
-            padding: 20px;
-            border-right: 3px solid #6f95bd;
-        }
-        .right-panel {
-            flex: 1;
-            background: #e2eefc;
-            padding: 20px;
-            min-width: 300px;
-        }
-        .user-card {
-            background: #a9c6e9;
-            border: 3px solid #2f5f96;
-            border-radius: 30px;
-            padding: 20px;
-            text-align: center;
-            margin-bottom: 25px;
-        }
-        .user-id {
-            background: white;
-            border: 2px solid #1d4e81;
-            border-radius: 40px;
-            padding: 15px 10px;
-            font-family: monospace;
-            font-size: 22px;
-            font-weight: bold;
-            color: #022c4e;
-            word-break: break-all;
-            margin-top: 10px;
-        }
-        .room-section {
-            background: #bbd3f0;
-            border: 3px solid #386fa8;
-            border-radius: 30px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .input-field {
-            width: 100%;
-            padding: 15px 18px;
-            font-size: 16px;
-            border: 3px solid #2d68a0;
-            border-radius: 50px;
-            background: white;
-            margin: 10px 0;
-        }
-        .btn {
-            background: #ecf5ff;
-            border: 3px solid #1d5b99;
-            border-radius: 50px;
-            padding: 15px 20px;
-            font-weight: bold;
-            font-size: 16px;
-            color: #012b50;
+            font-size: 20px;
             cursor: pointer;
-            width: 100%;
-            margin: 5px 0;
-            box-shadow: 4px 4px 0 #12406b;
-            transition: 0.03s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
         }
-        .btn:active {
-            transform: translate(4px, 4px);
-            box-shadow: none;
+
+        .log-toggle-btn:hover {
+            background: #3d3d3d;
         }
-        .btn-green {
-            background: #b8e0b8;
-            border-color: #1e791e;
-            color: #003000;
+
+        .log-toggle-btn.active {
+            background: #00aff0;
+            border-color: #008fc0;
         }
-        .btn-red {
-            background: #f5c2c2;
-            border-color: #b13d3d;
-            color: #480000;
-        }
-        .members-panel {
-            background: #d2e3fc;
-            border: 3px solid #3f7ab5;
-            border-radius: 30px;
-            padding: 20px;
-            margin: 15px 0;
-        }
-        .member-badge {
-            display: inline-block;
-            background: #2c6ca0;
-            color: white;
-            border-radius: 40px;
-            padding: 8px 16px;
-            margin: 5px;
-            font-size: 14px;
-            border: 2px solid #9bc2f0;
-        }
-        .log-container {
-            background: #0a1e30;
-            color: #b3defa;
-            font-family: 'Courier New', monospace;
+
+        /* Панель логов (скрыта по умолчанию) */
+        .log-panel {
+            position: fixed;
+            left: 20px;
+            bottom: 80px;
+            width: 500px;
+            max-width: calc(100vw - 40px);
+            background: #1b1f24;
+            border: 2px solid #333333;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', monospace;
             font-size: 13px;
-            padding: 20px;
-            border-radius: 20px;
+            z-index: 999;
+            display: none;
+        }
+
+        .log-panel.visible {
+            display: block;
+        }
+
+        .log-header {
+            background: #2d2d2d;
+            padding: 10px 15px;
+            border-bottom: 2px solid #404040;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .log-header span {
+            color: white;
+            font-weight: 300;
+            text-transform: uppercase;
+            font-size: 14px;
+        }
+
+        .log-close {
+            background: none;
+            border: 2px solid #555555;
+            color: white;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .log-close:hover {
+            background: #3d3d3d;
+        }
+
+        .log-content {
             height: 300px;
             overflow-y: auto;
-            border: 3px solid #3f83c1;
-            margin: 20px 0;
+            padding: 15px;
         }
+
         .log-line {
-            border-bottom: 1px solid #254f77;
-            padding: 5px 0;
+            padding: 4px 0;
+            border-bottom: 1px solid #333333;
+            color: #cccccc;
+            font-family: 'Segoe UI', monospace;
         }
-        .status-indicator {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            margin-right: 8px;
+
+        .log-line.error { color: #ff8a8a; }
+        .log-line.success { color: #90e090; }
+
+        .log-controls {
+            display: flex;
+            gap: 2px;
+            padding: 10px;
+            background: #2d2d2d;
+            border-top: 2px solid #404040;
         }
-        .status-bar {
-            background: #1f4468;
+
+        .log-btn {
+            background: #3a3a3a;
+            border: 2px solid #4a4a4a;
             color: white;
-            padding: 12px;
-            border-radius: 30px;
-            margin-bottom: 15px;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 13px;
+            font-weight: 300;
+            padding: 8px 12px;
+            cursor: pointer;
+            flex: 1;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .log-btn:hover {
+            background: #4a4a4a;
+        }
+
+        /* Главный контейнер */
+        .metro-container {
+            width: 1100px;
+            max-width: 100%;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            box-shadow: none;
+            border: none;
+        }
+
+        /* Синяя полоска Skype */
+        .metro-header {
+            background: #00aff0;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            color: white;
+            font-size: 24px;
+            font-weight: 300;
+            letter-spacing: 0.5px;
+        }
+
+        .metro-header span {
+            font-weight: 300;
+            text-transform: lowercase;
+        }
+
+        .metro-header .header-status {
+            margin-left: auto;
+            font-size: 15px;
+            font-weight: 300;
+            opacity: 0.9;
+        }
+
+        /* Основная сетка */
+        .metro-grid {
+            display: flex;
+            flex-direction: row;
+            min-height: 600px;
+        }
+
+        /* Левая колонка */
+        .metro-tile-profile {
+            width: 320px;
+            background: #f0f0f0;
+            border-right: 2px solid #d0d0d0;
+            padding: 0;
+        }
+
+        /* Плитка с ID пользователя */
+        .tile {
+            background: #00aff0;
+            color: white;
+            padding: 25px 20px;
+            margin: 0;
+            border-bottom: 2px solid #008fc0;
+        }
+
+        .tile-title {
+            font-size: 15px;
+            font-weight: 300;
+            text-transform: uppercase;
+            opacity: 0.8;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .tile-content {
+            font-size: 28px;
+            font-weight: 300;
+            word-break: break-all;
+            font-family: 'Segoe UI', monospace;
+        }
+
+        .tile-content-small {
+            font-size: 15px;
+            font-weight: 300;
+            opacity: 0.9;
+        }
+
+        /* Плитка комнаты */
+        .tile-room {
+            background: #2d2d2d;
+            color: white;
+            padding: 25px 20px;
+            border-bottom: 2px solid #404040;
+        }
+
+        .metro-input {
+            background: #3a3a3a;
+            border: 2px solid #555555;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 16px;
+            padding: 15px 15px;
+            width: 100%;
+            margin: 10px 0;
+            outline: none;
+            font-weight: 300;
+        }
+
+        .metro-input:focus {
+            border-color: #00aff0;
+            background: #454545;
+        }
+
+        .metro-btn {
+            background: #00aff0;
+            border: 2px solid #008fc0;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 18px;
+            font-weight: 300;
+            padding: 15px 20px;
+            margin: 5px 0;
+            width: 100%;
+            cursor: pointer;
+            text-align: left;
+            transition: background 0.1s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metro-btn:hover {
+            background: #1fc2ff;
+            border-color: #00a0e0;
+        }
+
+        .metro-btn:active {
+            background: #008fc0;
+            border-color: #0070a0;
+        }
+
+        .metro-btn-green {
+            background: #00b050;
+            border-color: #009040;
+        }
+
+        .metro-btn-green:hover {
+            background: #20c070;
+        }
+
+        .metro-btn-green:active {
+            background: #009040;
+        }
+
+        .metro-btn-red {
+            background: #e81123;
+            border-color: #c01120;
+        }
+
+        .metro-btn-red:hover {
+            background: #ff2133;
+        }
+
+        .metro-btn-red:active {
+            background: #c01120;
+        }
+
+        /* Плитка участников */
+        .tile-members {
+            background: #f0f0f0;
+            color: #1b1f24;
+            padding: 25px 20px;
+            border-bottom: 2px solid #d0d0d0;
+        }
+
+        .members-list {
+            display: flex;
+            flex-wrap: wrap;
+            margin-top: 15px;
+            gap: 8px;
+        }
+
+        .member-badge-metro {
+            background: #00aff0;
+            color: white;
+            padding: 8px 15px;
+            font-size: 14px;
+            font-weight: 300;
+            border: 2px solid #008fc0;
+            display: inline-block;
+        }
+
+        /* Правая колонка */
+        .metro-tile-logs {
+            flex: 1;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Статус бар */
+        .status-bar-metro {
+            background: #1b1f24;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            gap: 30px;
+            border-bottom: 2px solid #333333;
+            font-weight: 300;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            font-size: 15px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            background: #f1c40f;
+            margin-right: 10px;
+            border: none;
+        }
+
+        .status-dot.green { background: #00b050; }
+        .status-dot.red { background: #e81123; }
+        .status-dot.yellow { background: #f1c40f; }
+        .status-dot.gray { background: #7e7e7e; }
+
+        /* Контент правой колонки (пустой) */
+        .right-content {
+            flex: 1;
+            background: #f5f5f5;
         }
     </style>
 </head>
 <body>
-<div class="chat-container">
-    <div class="header">
-        🎧 Голосовой чат · Mesh до 4 участников
-    </div>
-    <div class="main-grid">
-        <!-- Левая панель -->
-        <div class="left-panel">
-            <div class="user-card">
-                <div style="font-size: 18px; color: #022e51;">Мой ID</div>
-                <div class="user-id" id="myUserId">Загрузка...</div>
-            </div>
+    <!-- Кнопка показа логов (квадратная в левом нижнем углу) -->
+    <button class="log-toggle-btn" id="logToggleBtn" title="Показать логи">📋</button>
 
-            <div class="room-section">
-                <div style="font-weight: bold; font-size: 18px; margin-bottom: 10px;">🚪 Комната</div>
-                <input type="text" id="roomInput" class="input-field" placeholder="ID комнаты" value="testroom">
-                <button class="btn btn-green" id="joinBtn">➕ Войти</button>
-                <button class="btn btn-red" id="leaveBtn">✖ Покинуть</button>
-                <button class="btn" id="testMicBtn">🎤 Тест микрофона</button>
-            </div>
-
-            <div class="members-panel">
-                <div style="font-weight: bold; margin-bottom: 15px;">👥 Участники (<span id="memberCount">0</span>/4)</div>
-                <div id="membersList"></div>
-                <div style="margin-top: 15px; font-size: 14px;">Текущая комната: <span id="currentRoom">—</span></div>
-            </div>
+    <!-- Панель логов (скрыта) -->
+    <div class="log-panel" id="logPanel">
+        <div class="log-header">
+            <span>системные логи</span>
+            <button class="log-close" id="logCloseBtn">✕</button>
         </div>
-
-        <!-- Правая панель с логами -->
-        <div class="right-panel">
-            <div class="status-bar" id="statusBar">
-                <div><span class="status-indicator" id="fbStatus" style="background: #f1c40f;"></span> Firebase: <span id="fbStatusText">Подключение...</span></div>
-                <div><span class="status-indicator" id="micStatus" style="background: #f1c40f;"></span> Микрофон: <span id="micStatusText">Не инициализирован</span></div>
-                <div><span class="status-indicator" id="peerStatus" style="background: #f1c40f;"></span> Пиры: <span id="peerCount">0</span></div>
-            </div>
-
-            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                <button class="btn" id="copyLogsBtn" style="padding: 10px;">📋 Копировать логи</button>
-                <button class="btn" id="clearLogsBtn" style="padding: 10px;">🗑 Очистить</button>
-            </div>
-
-            <div id="logPanel" class="log-container">
-                <div class="log-line">[System] Запуск...</div>
-            </div>
+        <div class="log-content" id="logContent">
+            <div class="log-line">[system] запуск...</div>
+        </div>
+        <div class="log-controls">
+            <button class="log-btn" id="copyLogsBtn">копировать</button>
+            <button class="log-btn" id="clearLogsBtn">очистить</button>
         </div>
     </div>
-</div>
 
-<script>
-    // ------------------------------------------------------------
-    // Firebase конфигурация
-    const firebaseConfig = {
-        apiKey: "AIzaSyDTx2Y9ctiWp26YeMmAHAxDZd_gVI_ZMdw",
-        authDomain: "kcalls.firebaseapp.com",
-        databaseURL: "https://kcalls-default-rtdb.firebaseio.com",
-        projectId: "kcalls",
-        storageBucket: "kcalls.firebasestorage.app",
-        messagingSenderId: "990117089104",
-        appId: "1:990117089104:web:278a42c037e975ebb76655"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    <!-- Основной интерфейс -->
+    <div class="metro-container">
+        <!-- Синяя полоска Skype -->
+        <div class="metro-header">
+            <span>skype</span>
+            <div class="header-status" id="fbStatusText">подключение...</div>
+        </div>
 
-    // ------------------------------------------------------------
-    // Глобальные переменные
-    const myUserId = 'user_' + Math.random().toString(36).substring(2, 8);
-    document.getElementById('myUserId').innerText = myUserId;
+        <!-- Основная сетка с плитками -->
+        <div class="metro-grid">
+            <!-- Левая колонка - плитки -->
+            <div class="metro-tile-profile">
+                <!-- Плитка с моим ID -->
+                <div class="tile">
+                    <div class="tile-title">мой идентификатор</div>
+                    <div class="tile-content" id="myUserId">загрузка...</div>
+                    <div class="tile-content-small" style="margin-top: 10px;">поделитесь этим id</div>
+                </div>
 
-    let localStream = null;
-    let peers = new Map(); // userId -> RTCPeerConnection
-    let currentRoom = null;
-    let roomMembers = new Set();
-    let processingOffers = new Set(); // Для избежания двойной обработки
-    
-    // Firebase listeners
-    let membersRef = null;
-    let offersRef = null;
-    let answersRef = null;
-    let candidatesRef = null;
-
-    // DOM элементы
-    const logPanel = document.getElementById('logPanel');
-    const membersList = document.getElementById('membersList');
-    const currentRoomSpan = document.getElementById('currentRoom');
-    const roomInput = document.getElementById('roomInput');
-    const joinBtn = document.getElementById('joinBtn');
-    const leaveBtn = document.getElementById('leaveBtn');
-    const testMicBtn = document.getElementById('testMicBtn');
-    const copyLogsBtn = document.getElementById('copyLogsBtn');
-    const clearLogsBtn = document.getElementById('clearLogsBtn');
-    const memberCount = document.getElementById('memberCount');
-    const peerCount = document.getElementById('peerCount');
-    
-    // Статус индикаторы
-    const fbStatus = document.getElementById('fbStatus');
-    const fbStatusText = document.getElementById('fbStatusText');
-    const micStatus = document.getElementById('micStatus');
-    const micStatusText = document.getElementById('micStatusText');
-    const peerStatus = document.getElementById('peerStatus');
-
-    // ------------------------------------------------------------
-    // Логирование
-    function log(message, type = 'info') {
-        const time = new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        const line = document.createElement('div');
-        line.className = 'log-line';
-        
-        let prefix = '➡️';
-        if (type === 'error') prefix = '❌';
-        else if (type === 'success') prefix = '✅';
-        else if (type === 'warning') prefix = '⚠️';
-        
-        line.innerHTML = `[${time}] ${prefix} ${message}`;
-        logPanel.appendChild(line);
-        logPanel.scrollTop = logPanel.scrollHeight;
-        
-        if (type === 'error') console.error(message);
-        else console.log(message);
-    }
-
-    clearLogsBtn.addEventListener('click', () => {
-        logPanel.innerHTML = '<div class="log-line">[System] Логи очищены</div>';
-    });
-
-    copyLogsBtn.addEventListener('click', () => {
-        let text = '';
-        document.querySelectorAll('.log-line').forEach(div => {
-            text += div.innerText + '\n';
-        });
-        navigator.clipboard.writeText(text).then(() => {
-            log('Логи скопированы', 'success');
-        });
-    });
-
-    // ------------------------------------------------------------
-    // Микрофон
-    async function initMic(force = false) {
-        if (localStream && !force) {
-            micStatus.style.background = '#2ecc71';
-            micStatusText.innerText = 'Доступен';
-            return localStream;
-        }
-        
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            micStatus.style.background = '#e74c3c';
-            micStatusText.innerText = 'Не поддерживается';
-            log('getUserMedia не поддерживается (нужен HTTPS)', 'error');
-            throw new Error('getUserMedia not supported');
-        }
-        
-        try {
-            micStatus.style.background = '#f1c40f';
-            micStatusText.innerText = 'Запрос...';
-            log('Запрашиваем микрофон...');
-            
-            localStream = await navigator.mediaDevices.getUserMedia({ 
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                }
-            });
-            
-            micStatus.style.background = '#2ecc71';
-            micStatusText.innerText = 'Доступен';
-            log('Микрофон получен', 'success');
-            
-            localStream.getTracks().forEach(track => {
-                log(`Трек ${track.kind}: enabled=${track.enabled}`, 'info');
-            });
-            
-            return localStream;
-            
-        } catch (err) {
-            micStatus.style.background = '#e74c3c';
-            micStatusText.innerText = 'Ошибка';
-            
-            let msg = 'Ошибка микрофона: ';
-            if (err.name === 'NotAllowedError') msg += 'Доступ запрещён';
-            else if (err.name === 'NotFoundError') msg += 'Микрофон не найден';
-            else msg += err.message;
-            
-            log(msg, 'error');
-            throw err;
-        }
-    }
-
-    testMicBtn.addEventListener('click', async () => {
-        try {
-            await initMic(true);
-            log('Тест микрофона успешен', 'success');
-        } catch (err) {
-            log('Тест микрофона не пройден', 'error');
-        }
-    });
-
-    // ------------------------------------------------------------
-    // Создание пира
-    async function createPeer(targetId, role = 'offerer') {
-        if (peers.has(targetId)) {
-            log(`Закрываем старый пир ${targetId}`, 'warning');
-            peers.get(targetId).close();
-            peers.delete(targetId);
-        }
-
-        if (!localStream) {
-            log('Нет микрофона, пробуем получить', 'warning');
-            try { await initMic(); } catch (err) {}
-        }
-
-        const pc = new RTCPeerConnection({
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
-        });
-
-        // Добавляем треки
-        if (localStream) {
-            localStream.getTracks().forEach(track => {
-                try {
-                    pc.addTrack(track, localStream);
-                    log(`Трек добавлен для ${targetId}`, 'info');
-                } catch (err) {
-                    log(`Ошибка добавления трека: ${err.message}`, 'error');
-                }
-            });
-        }
-
-        // ICE кандидаты
-        pc.onicecandidate = (e) => {
-            if (e.candidate && currentRoom) {
-                const path = `rooms/${currentRoom}/candidates/${myUserId}/${targetId}`;
-                db.ref(path).push(e.candidate.toJSON())
-                    .then(() => log(`ICE кандидат для ${targetId} отправлен`, 'info'))
-                    .catch(err => log(`Ошибка ICE: ${err.message}`, 'error'));
-            }
-        };
-
-        // Получение аудио
-        pc.ontrack = (e) => {
-            log(`✅ Получен аудиотрек от ${targetId}`, 'success');
-            
-            let audio = document.getElementById(`audio_${targetId}`);
-            if (!audio) {
-                audio = document.createElement('audio');
-                audio.id = `audio_${targetId}`;
-                audio.autoplay = true;
-                audio.style.display = 'none';
-                document.body.appendChild(audio);
-            }
-            
-            audio.srcObject = e.streams[0];
-            audio.play().catch(err => log(`Ошибка воспроизведения: ${err.message}`, 'warning'));
-        };
-
-        // Мониторинг состояния
-        pc.oniceconnectionstatechange = () => {
-            log(`ICE ${targetId}: ${pc.iceConnectionState}`, 'info');
-            updatePeerStats();
-        };
-
-        pc.onconnectionstatechange = () => {
-            log(`Conn ${targetId}: ${pc.connectionState}`, 'info');
-            updatePeerStats();
-        };
-
-        peers.set(targetId, pc);
-        updatePeerStats();
-        return pc;
-    }
-
-    // ------------------------------------------------------------
-    // Закрыть все пиры
-    async function closeAllPeers() {
-        for (let [id, pc] of peers) {
-            try {
-                pc.close();
-                let audio = document.getElementById(`audio_${id}`);
-                if (audio) audio.remove();
-            } catch (err) {
-                log(`Ошибка закрытия пира ${id}: ${err.message}`, 'error');
-            }
-        }
-        peers.clear();
-        updatePeerStats();
-        log('Все пиры закрыты', 'info');
-    }
-
-    // ------------------------------------------------------------
-    // Сравнение ID для определения роли (кто создаёт offer)
-    function shouldCreateOffer(remoteId) {
-        // Тот, у кого ID меньше, создаёт offer (чтобы избежать двойных соединений)
-        return myUserId < remoteId;
-    }
-
-    // ------------------------------------------------------------
-    // Вход в комнату
-    async function joinRoom(roomId) {
-        if (!roomId) { log('Введите ID комнаты', 'error'); return; }
-        if (currentRoom) { log('Сначала покиньте текущую комнату', 'warning'); return; }
-
-        await initMic().catch(() => {});
-
-        currentRoom = roomId;
-        currentRoomSpan.innerText = roomId;
-        log(`Вход в комнату: ${roomId}`, 'info');
-
-        // Добавляем себя
-        await db.ref(`rooms/${roomId}/members/${myUserId}`).set({
-            joined: Date.now()
-        });
-
-        // Слушаем участников
-        membersRef = db.ref(`rooms/${roomId}/members`);
-        membersRef.on('value', (snap) => {
-            const members = snap.val() || {};
-            const userIds = Object.keys(members);
-            roomMembers = new Set(userIds);
-            
-            memberCount.innerText = userIds.length;
-            
-            // Отображаем список
-            membersList.innerHTML = '';
-            userIds.forEach(uid => {
-                const span = document.createElement('span');
-                span.className = 'member-badge';
-                span.innerText = uid + (uid === myUserId ? ' (Я)' : '');
-                membersList.appendChild(span);
-            });
-
-            log(`Участники: ${userIds.join(', ') || 'никого'}`, 'info');
-
-            // Создаём пиры для новых участников (только если должны быть offerer)
-            userIds.forEach(async (uid) => {
-                if (uid === myUserId) return;
-                if (!peers.has(uid) && shouldCreateOffer(uid)) {
-                    log(`Новый участник ${uid}, создаём offer (я offerer)`, 'info');
+                <!-- Плитка комната -->
+                <div class="tile-room">
+                    <div class="tile-title">комната</div>
+                    <input type="text" id="roomInput" class="metro-input" placeholder="id комнаты" value="testroom">
                     
-                    try {
-                        const pc = await createPeer(uid, 'offerer');
-                        
-                        // Создаём offer
-                        const offer = await pc.createOffer({
-                            offerToReceiveAudio: true
-                        });
-                        await pc.setLocalDescription(offer);
-                        
-                        // Отправляем offer
-                        await db.ref(`rooms/${roomId}/offers/${myUserId}/${uid}`).set({
-                            type: offer.type,
-                            sdp: offer.sdp
-                        });
-                        log(`Offer отправлен для ${uid}`, 'success');
-                        
-                    } catch (err) {
-                        log(`Ошибка создания offer: ${err.message}`, 'error');
+                    <button class="metro-btn metro-btn-green" id="joinBtn">войти</button>
+                    <button class="metro-btn metro-btn-red" id="leaveBtn">покинуть</button>
+                    <button class="metro-btn" id="testMicBtn">тест микрофона</button>
+                </div>
+
+                <!-- Плитка участники -->
+                <div class="tile-members">
+                    <div class="tile-title">участники (<span id="memberCount">0</span>/4)</div>
+                    <div id="membersList" class="members-list"></div>
+                    <div style="margin-top: 20px; font-weight: 300;">
+                        <span class="metro-text-small">текущая: </span>
+                        <span id="currentRoom" style="font-weight: 300;">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Правая колонка - статус -->
+            <div class="metro-tile-logs">
+                <!-- Статус бар -->
+                <div class="status-bar-metro">
+                    <div class="status-item">
+                        <div class="status-dot" id="fbStatus"></div>
+                        <span>firebase</span>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-dot" id="micStatus"></div>
+                        <span>микрофон</span>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-dot" id="peerStatus"></div>
+                        <span>пиры: <span id="peerCount">0</span></span>
+                    </div>
+                </div>
+                <!-- Пустая правая колонка -->
+                <div class="right-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ------------------------------------------------------------
+        // Firebase конфигурация
+        const firebaseConfig = {
+            apiKey: "AIzaSyDTx2Y9ctiWp26YeMmAHAxDZd_gVI_ZMdw",
+            authDomain: "kcalls.firebaseapp.com",
+            databaseURL: "https://kcalls-default-rtdb.firebaseio.com",
+            projectId: "kcalls",
+            storageBucket: "kcalls.firebasestorage.app",
+            messagingSenderId: "990117089104",
+            appId: "1:990117089104:web:278a42c037e975ebb76655"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // ------------------------------------------------------------
+        // Глобальные переменные
+        const myUserId = 'user_' + Math.random().toString(36).substring(2, 8);
+        document.getElementById('myUserId').innerText = myUserId;
+
+        let localStream = null;
+        let peers = new Map();
+        let currentRoom = null;
+        let roomMembers = new Set();
+        let processingOffers = new Set();
+        
+        let membersRef = null;
+        let offersRef = null;
+        let answersRef = null;
+        let candidatesRef = null;
+
+        // DOM элементы
+        const logPanel = document.getElementById('logPanel');
+        const logContent = document.getElementById('logContent');
+        const logToggleBtn = document.getElementById('logToggleBtn');
+        const logCloseBtn = document.getElementById('logCloseBtn');
+        const membersList = document.getElementById('membersList');
+        const currentRoomSpan = document.getElementById('currentRoom');
+        const roomInput = document.getElementById('roomInput');
+        const joinBtn = document.getElementById('joinBtn');
+        const leaveBtn = document.getElementById('leaveBtn');
+        const testMicBtn = document.getElementById('testMicBtn');
+        const copyLogsBtn = document.getElementById('copyLogsBtn');
+        const clearLogsBtn = document.getElementById('clearLogsBtn');
+        const memberCount = document.getElementById('memberCount');
+        const peerCount = document.getElementById('peerCount');
+        
+        // Статус индикаторы
+        const fbStatus = document.getElementById('fbStatus');
+        const fbStatusText = document.getElementById('fbStatusText');
+        const micStatus = document.getElementById('micStatus');
+        const peerStatus = document.getElementById('peerStatus');
+
+        // ------------------------------------------------------------
+        // Управление панелью логов
+        logToggleBtn.addEventListener('click', () => {
+            logPanel.classList.toggle('visible');
+            logToggleBtn.classList.toggle('active');
+        });
+
+        logCloseBtn.addEventListener('click', () => {
+            logPanel.classList.remove('visible');
+            logToggleBtn.classList.remove('active');
+        });
+
+        // ------------------------------------------------------------
+        // Логирование
+        function log(message, type = 'info') {
+            const time = new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const line = document.createElement('div');
+            line.className = 'log-line';
+            if (type === 'error') line.classList.add('error');
+            if (type === 'success') line.classList.add('success');
+            
+            let prefix = '';
+            if (type === 'error') prefix = 'ERROR: ';
+            else if (type === 'success') prefix = 'OK: ';
+            else if (type === 'warning') prefix = 'WARNING: ';
+            
+            line.innerHTML = `[${time}] ${prefix}${message}`;
+            logContent.appendChild(line);
+            logContent.scrollTop = logContent.scrollHeight;
+            
+            if (type === 'error') console.error(message);
+            else console.log(message);
+        }
+
+        clearLogsBtn.addEventListener('click', () => {
+            logContent.innerHTML = '<div class="log-line">[system] логи очищены</div>';
+        });
+
+        copyLogsBtn.addEventListener('click', () => {
+            let text = '';
+            document.querySelectorAll('#logContent .log-line').forEach(div => {
+                text += div.innerText + '\n';
+            });
+            navigator.clipboard.writeText(text).then(() => {
+                log('логи скопированы', 'success');
+            });
+        });
+
+        // ------------------------------------------------------------
+        // Микрофон
+        async function initMic(force = false) {
+            if (localStream && !force) {
+                micStatus.className = 'status-dot green';
+                return localStream;
+            }
+            
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                micStatus.className = 'status-dot red';
+                log('getUserMedia не поддерживается (нужен HTTPS)', 'error');
+                throw new Error('getUserMedia not supported');
+            }
+            
+            try {
+                micStatus.className = 'status-dot yellow';
+                log('запрашиваем микрофон...');
+                
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
                     }
-                } else if (!peers.has(uid)) {
-                    log(`Новый участник ${uid}, жду offer от него`, 'info');
-                }
+                });
+                
+                micStatus.className = 'status-dot green';
+                log('микрофон получен', 'success');
+                
+                localStream.getTracks().forEach(track => {
+                    log(`трек ${track.kind}: enabled=${track.enabled}`, 'info');
+                });
+                
+                return localStream;
+                
+            } catch (err) {
+                micStatus.className = 'status-dot red';
+                
+                let msg = 'ошибка микрофона: ';
+                if (err.name === 'NotAllowedError') msg += 'доступ запрещён';
+                else if (err.name === 'NotFoundError') msg += 'микрофон не найден';
+                else msg += err.message;
+                
+                log(msg, 'error');
+                throw err;
+            }
+        }
+
+        testMicBtn.addEventListener('click', async () => {
+            try {
+                await initMic(true);
+                log('тест микрофона успешен', 'success');
+            } catch (err) {
+                log('тест микрофона не пройден', 'error');
+            }
+        });
+
+        // ------------------------------------------------------------
+        // Создание пира
+        async function createPeer(targetId) {
+            if (peers.has(targetId)) {
+                log(`закрываем старый пир ${targetId}`, 'warning');
+                peers.get(targetId).close();
+                peers.delete(targetId);
+            }
+
+            if (!localStream) {
+                log('нет микрофона, пробуем получить', 'warning');
+                try { await initMic(); } catch (err) {}
+            }
+
+            const pc = new RTCPeerConnection({
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' }
+                ]
             });
 
-            // Удаляем пиры вышедших
-            for (let uid of peers.keys()) {
-                if (!userIds.includes(uid)) {
-                    log(`Участник ${uid} вышел`, 'info');
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
                     try {
-                        peers.get(uid).close();
-                        peers.delete(uid);
-                        let audio = document.getElementById(`audio_${uid}`);
-                        if (audio) audio.remove();
+                        pc.addTrack(track, localStream);
                     } catch (err) {
-                        log(`Ошибка удаления пира: ${err.message}`, 'error');
-                    }
-                }
-            }
-            updatePeerStats();
-        });
-
-        // Слушаем offers
-        offersRef = db.ref(`rooms/${roomId}/offers`);
-        offersRef.on('child_added', (snap) => {
-            const fromUser = snap.key;
-            if (fromUser === myUserId) return;
-            if (processingOffers.has(fromUser)) return; // Предотвращаем двойную обработку
-            
-            const offers = snap.val();
-            if (offers && offers[myUserId]) {
-                const offerData = offers[myUserId];
-                log(`📞 Получен offer от ${fromUser}`, 'info');
-                processingOffers.add(fromUser);
-                
-                (async () => {
-                    try {
-                        // Проверяем, не создали ли мы уже пир
-                        if (!peers.has(fromUser)) {
-                            await createPeer(fromUser, 'answerer');
-                        }
-                        
-                        const pc = peers.get(fromUser);
-                        
-                        // Устанавливаем remote description
-                        await pc.setRemoteDescription(new RTCSessionDescription(offerData));
-                        log(`Remote description установлен для ${fromUser}`, 'success');
-                        
-                        // Создаём answer
-                        const answer = await pc.createAnswer();
-                        await pc.setLocalDescription(answer);
-                        
-                        // Отправляем answer
-                        await db.ref(`rooms/${roomId}/answers/${myUserId}/${fromUser}`).set({
-                            type: answer.type,
-                            sdp: answer.sdp
-                        });
-                        log(`Answer отправлен для ${fromUser}`, 'success');
-                        
-                    } catch (err) {
-                        log(`Ошибка обработки offer: ${err.message}`, 'error');
-                    } finally {
-                        processingOffers.delete(fromUser);
-                    }
-                })();
-            }
-        });
-
-        // Слушаем answers
-        answersRef = db.ref(`rooms/${roomId}/answers`);
-        answersRef.on('child_added', (snap) => {
-            const fromUser = snap.key;
-            if (fromUser === myUserId) return;
-            
-            const answers = snap.val();
-            if (answers && answers[myUserId]) {
-                const answerData = answers[myUserId];
-                log(`📞 Получен answer от ${fromUser}`, 'info');
-                
-                (async () => {
-                    try {
-                        const pc = peers.get(fromUser);
-                        if (pc) {
-                            // Проверяем состояние, чтобы избежать ошибки "wrong state"
-                            if (pc.signalingState !== 'stable') {
-                                await pc.setRemoteDescription(new RTCSessionDescription(answerData));
-                                log(`Remote answer установлен для ${fromUser}`, 'success');
-                            } else {
-                                log(`Соединение с ${fromUser} уже установлено`, 'info');
-                            }
-                        } else {
-                            log(`Нет пира для ${fromUser}`, 'error');
-                        }
-                    } catch (err) {
-                        log(`Ошибка установки answer: ${err.message}`, 'error');
-                    }
-                })();
-            }
-        });
-
-        // Слушаем candidates
-        candidatesRef = db.ref(`rooms/${roomId}/candidates`);
-        candidatesRef.on('child_added', (snap) => {
-            const fromUser = snap.key;
-            if (fromUser === myUserId) return;
-            
-            const candidates = snap.val();
-            if (candidates && candidates[myUserId]) {
-                // Проходим по всем кандидатам
-                Object.values(candidates[myUserId]).forEach(candidateData => {
-                    const pc = peers.get(fromUser);
-                    if (pc && pc.remoteDescription) {
-                        pc.addIceCandidate(new RTCIceCandidate(candidateData))
-                            .then(() => log(`ICE кандидат добавлен от ${fromUser}`, 'info'))
-                            .catch(err => log(`Ошибка добавления ICE: ${err.message}`, 'error'));
+                        log(`ошибка добавления трека: ${err.message}`, 'error');
                     }
                 });
             }
-        });
 
-        log('✅ Успешно вошли в комнату', 'success');
-    }
+            pc.onicecandidate = (e) => {
+                if (e.candidate && currentRoom) {
+                    const path = `rooms/${currentRoom}/candidates/${myUserId}/${targetId}`;
+                    db.ref(path).push(e.candidate.toJSON())
+                        .catch(err => log(`ошибка ICE: ${err.message}`, 'error'));
+                }
+            };
 
-    // ------------------------------------------------------------
-    // Выход из комнаты
-    async function leaveRoom() {
-        if (!currentRoom) {
-            log('Вы не в комнате', 'warning');
-            return;
+            pc.ontrack = (e) => {
+                log(`получен аудиотрек от ${targetId}`, 'success');
+                
+                let audio = document.getElementById(`audio_${targetId}`);
+                if (!audio) {
+                    audio = document.createElement('audio');
+                    audio.id = `audio_${targetId}`;
+                    audio.autoplay = true;
+                    audio.style.display = 'none';
+                    document.body.appendChild(audio);
+                }
+                
+                audio.srcObject = e.streams[0];
+                audio.play().catch(err => log(`ошибка воспроизведения: ${err.message}`, 'warning'));
+            };
+
+            pc.oniceconnectionstatechange = () => {
+                log(`ice ${targetId}: ${pc.iceConnectionState}`, 'info');
+                updatePeerStats();
+            };
+
+            pc.onconnectionstatechange = () => {
+                log(`conn ${targetId}: ${pc.connectionState}`, 'info');
+                updatePeerStats();
+            };
+
+            peers.set(targetId, pc);
+            updatePeerStats();
+            return pc;
         }
 
-        const roomId = currentRoom;
-        
-        try {
-            // Удаляем себя
-            await db.ref(`rooms/${roomId}/members/${myUserId}`).remove();
-            
-            // Удаляем свои сигналы
-            await db.ref(`rooms/${roomId}/offers/${myUserId}`).remove();
-            await db.ref(`rooms/${roomId}/answers/${myUserId}`).remove();
-            await db.ref(`rooms/${roomId}/candidates/${myUserId}`).remove();
-            
-            // Отписываемся
-            if (membersRef) membersRef.off();
-            if (offersRef) offersRef.off();
-            if (answersRef) answersRef.off();
-            if (candidatesRef) candidatesRef.off();
-            
-            await closeAllPeers();
-            processingOffers.clear();
-            
-            currentRoom = null;
-            currentRoomSpan.innerText = '—';
-            membersList.innerHTML = '';
-            memberCount.innerText = '0';
-            
-            log('👋 Вышли из комнаты', 'success');
-            
-        } catch (err) {
-            log(`Ошибка при выходе: ${err.message}`, 'error');
+        // ------------------------------------------------------------
+        // Закрыть все пиры
+        async function closeAllPeers() {
+            for (let [id, pc] of peers) {
+                try {
+                    pc.close();
+                    let audio = document.getElementById(`audio_${id}`);
+                    if (audio) audio.remove();
+                } catch (err) {
+                    log(`ошибка закрытия пира ${id}: ${err.message}`, 'error');
+                }
+            }
+            peers.clear();
+            updatePeerStats();
+            log('все пиры закрыты', 'info');
         }
-    }
 
-    // ------------------------------------------------------------
-    // Обновление статистики пиров
-    function updatePeerStats() {
-        let connected = 0;
-        for (let pc of peers.values()) {
-            if (pc.connectionState === 'connected' || pc.iceConnectionState === 'connected') {
-                connected++;
+        // ------------------------------------------------------------
+        // Сравнение ID для определения роли
+        function shouldCreateOffer(remoteId) {
+            return myUserId < remoteId;
+        }
+
+        // ------------------------------------------------------------
+        // Обновление статистики пиров
+        function updatePeerStats() {
+            let connected = 0;
+            for (let pc of peers.values()) {
+                if (pc.connectionState === 'connected' || pc.iceConnectionState === 'connected') {
+                    connected++;
+                }
+            }
+            peerCount.innerText = `${peers.size} (${connected} соед.)`;
+            
+            if (connected > 0) {
+                peerStatus.className = 'status-dot green';
+            } else if (peers.size > 0) {
+                peerStatus.className = 'status-dot yellow';
+            } else {
+                peerStatus.className = 'status-dot gray';
             }
         }
-        peerCount.innerText = `${peers.size} (${connected} соединено)`;
-        
-        if (connected > 0) {
-            peerStatus.style.background = '#2ecc71';
-        } else if (peers.size > 0) {
-            peerStatus.style.background = '#f1c40f';
-        } else {
-            peerStatus.style.background = '#95a5a6';
+
+        // ------------------------------------------------------------
+        // Вход в комнату
+        async function joinRoom(roomId) {
+            if (!roomId) { log('введите id комнаты', 'error'); return; }
+            if (currentRoom) { log('сначала покиньте комнату', 'warning'); return; }
+
+            await initMic().catch(() => {});
+
+            currentRoom = roomId;
+            currentRoomSpan.innerText = roomId;
+            log(`вход в комнату: ${roomId}`, 'info');
+
+            await db.ref(`rooms/${roomId}/members/${myUserId}`).set({
+                joined: Date.now()
+            });
+
+            membersRef = db.ref(`rooms/${roomId}/members`);
+            membersRef.on('value', (snap) => {
+                const members = snap.val() || {};
+                const userIds = Object.keys(members);
+                roomMembers = new Set(userIds);
+                
+                memberCount.innerText = userIds.length;
+                
+                membersList.innerHTML = '';
+                userIds.forEach(uid => {
+                    const span = document.createElement('span');
+                    span.className = 'member-badge-metro';
+                    span.innerText = uid + (uid === myUserId ? ' (я)' : '');
+                    membersList.appendChild(span);
+                });
+
+                log(`участники: ${userIds.join(', ') || 'никого'}`, 'info');
+
+                userIds.forEach(async (uid) => {
+                    if (uid === myUserId) return;
+                    if (!peers.has(uid) && shouldCreateOffer(uid)) {
+                        log(`новый участник ${uid}, создаю offer`, 'info');
+                        
+                        try {
+                            const pc = await createPeer(uid);
+                            
+                            const offer = await pc.createOffer({
+                                offerToReceiveAudio: true
+                            });
+                            await pc.setLocalDescription(offer);
+                            
+                            await db.ref(`rooms/${roomId}/offers/${myUserId}/${uid}`).set({
+                                type: offer.type,
+                                sdp: offer.sdp
+                            });
+                            log(`offer отправлен для ${uid}`, 'success');
+                            
+                        } catch (err) {
+                            log(`ошибка создания offer: ${err.message}`, 'error');
+                        }
+                    }
+                });
+
+                for (let uid of peers.keys()) {
+                    if (!userIds.includes(uid)) {
+                        log(`участник ${uid} вышел`, 'info');
+                        try {
+                            peers.get(uid).close();
+                            peers.delete(uid);
+                            let audio = document.getElementById(`audio_${uid}`);
+                            if (audio) audio.remove();
+                        } catch (err) {
+                            log(`ошибка удаления пира: ${err.message}`, 'error');
+                        }
+                    }
+                }
+                updatePeerStats();
+            });
+
+            offersRef = db.ref(`rooms/${roomId}/offers`);
+            offersRef.on('child_added', (snap) => {
+                const fromUser = snap.key;
+                if (fromUser === myUserId) return;
+                if (processingOffers.has(fromUser)) return;
+                
+                const offers = snap.val();
+                if (offers && offers[myUserId]) {
+                    const offerData = offers[myUserId];
+                    log(`получен offer от ${fromUser}`, 'info');
+                    processingOffers.add(fromUser);
+                    
+                    (async () => {
+                        try {
+                            if (!peers.has(fromUser)) {
+                                await createPeer(fromUser);
+                            }
+                            
+                            const pc = peers.get(fromUser);
+                            await pc.setRemoteDescription(new RTCSessionDescription(offerData));
+                            log(`remote description установлен для ${fromUser}`, 'success');
+                            
+                            const answer = await pc.createAnswer();
+                            await pc.setLocalDescription(answer);
+                            
+                            await db.ref(`rooms/${roomId}/answers/${myUserId}/${fromUser}`).set({
+                                type: answer.type,
+                                sdp: answer.sdp
+                            });
+                            log(`answer отправлен для ${fromUser}`, 'success');
+                            
+                        } catch (err) {
+                            log(`ошибка обработки offer: ${err.message}`, 'error');
+                        } finally {
+                            processingOffers.delete(fromUser);
+                        }
+                    })();
+                }
+            });
+
+            answersRef = db.ref(`rooms/${roomId}/answers`);
+            answersRef.on('child_added', (snap) => {
+                const fromUser = snap.key;
+                if (fromUser === myUserId) return;
+                
+                const answers = snap.val();
+                if (answers && answers[myUserId]) {
+                    const answerData = answers[myUserId];
+                    log(`получен answer от ${fromUser}`, 'info');
+                    
+                    (async () => {
+                        try {
+                            const pc = peers.get(fromUser);
+                            if (pc && pc.signalingState !== 'stable') {
+                                await pc.setRemoteDescription(new RTCSessionDescription(answerData));
+                                log(`remote answer установлен для ${fromUser}`, 'success');
+                            }
+                        } catch (err) {
+                            log(`ошибка установки answer: ${err.message}`, 'error');
+                        }
+                    })();
+                }
+            });
+
+            candidatesRef = db.ref(`rooms/${roomId}/candidates`);
+            candidatesRef.on('child_added', (snap) => {
+                const fromUser = snap.key;
+                if (fromUser === myUserId) return;
+                
+                const candidates = snap.val();
+                if (candidates && candidates[myUserId]) {
+                    Object.values(candidates[myUserId]).forEach(candidateData => {
+                        const pc = peers.get(fromUser);
+                        if (pc && pc.remoteDescription) {
+                            pc.addIceCandidate(new RTCIceCandidate(candidateData))
+                                .catch(err => log(`ошибка добавления ice: ${err.message}`, 'error'));
+                        }
+                    });
+                }
+            });
+
+            log('успешно вошли в комнату', 'success');
         }
-    }
 
-    // ------------------------------------------------------------
-    // Firebase статус
-    db.ref('.info/connected').on('value', (snap) => {
-        if (snap.val()) {
-            fbStatus.style.background = '#2ecc71';
-            fbStatusText.innerText = 'Подключен';
-            log('Firebase подключен', 'success');
-        } else {
-            fbStatus.style.background = '#e74c3c';
-            fbStatusText.innerText = 'Отключен';
-            log('Firebase отключен', 'error');
+        // ------------------------------------------------------------
+        // Выход из комнаты
+        async function leaveRoom() {
+            if (!currentRoom) {
+                log('вы не в комнате', 'warning');
+                return;
+            }
+
+            const roomId = currentRoom;
+            
+            try {
+                await db.ref(`rooms/${roomId}/members/${myUserId}`).remove();
+                await db.ref(`rooms/${roomId}/offers/${myUserId}`).remove();
+                await db.ref(`rooms/${roomId}/answers/${myUserId}`).remove();
+                await db.ref(`rooms/${roomId}/candidates/${myUserId}`).remove();
+                
+                if (membersRef) membersRef.off();
+                if (offersRef) offersRef.off();
+                if (answersRef) answersRef.off();
+                if (candidatesRef) candidatesRef.off();
+                
+                await closeAllPeers();
+                processingOffers.clear();
+                
+                currentRoom = null;
+                currentRoomSpan.innerText = '—';
+                membersList.innerHTML = '';
+                memberCount.innerText = '0';
+                
+                log('вышли из комнаты', 'success');
+                
+            } catch (err) {
+                log(`ошибка при выходе: ${err.message}`, 'error');
+            }
         }
-    });
 
-    // ------------------------------------------------------------
-    // Обработчики
-    joinBtn.addEventListener('click', () => {
-        joinRoom(roomInput.value.trim());
-    });
+        // ------------------------------------------------------------
+        // Firebase статус
+        db.ref('.info/connected').on('value', (snap) => {
+            if (snap.val()) {
+                fbStatus.className = 'status-dot green';
+                fbStatusText.innerText = 'подключено';
+                log('firebase подключен', 'success');
+            } else {
+                fbStatus.className = 'status-dot red';
+                fbStatusText.innerText = 'отключено';
+                log('firebase отключен', 'error');
+            }
+        });
 
-    leaveBtn.addEventListener('click', leaveRoom);
+        // ------------------------------------------------------------
+        // Обработчики
+        joinBtn.addEventListener('click', () => {
+            joinRoom(roomInput.value.trim());
+        });
 
-    window.addEventListener('beforeunload', () => {
-        if (currentRoom) {
-            db.ref(`rooms/${currentRoom}/members/${myUserId}`).remove();
-        }
-    });
+        leaveBtn.addEventListener('click', leaveRoom);
 
-    // ------------------------------------------------------------
-    // Старт
-    log(`Ваш ID: ${myUserId}`, 'info');
-</script>
+        window.addEventListener('beforeunload', () => {
+            if (currentRoom) {
+                db.ref(`rooms/${currentRoom}/members/${myUserId}`).remove();
+            }
+        });
+
+        // ------------------------------------------------------------
+        // Старт
+        log(`ваш id: ${myUserId}`, 'info');
+    </script>
 </body>
 </html>
