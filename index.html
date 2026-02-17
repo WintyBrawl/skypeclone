@@ -20,18 +20,18 @@
             background: #1b1f24;
             display: flex;
             justify-content: center;
-            align-items: flex-start;
+            align-items: center;
             min-height: 100vh;
             margin: 0;
-            padding: 10px;
+            padding: 20px;
             position: relative;
         }
 
         /* Кнопка показа логов */
         .log-toggle-btn {
             position: fixed;
-            left: 10px;
-            bottom: 10px;
+            left: 20px;
+            bottom: 20px;
             width: 48px;
             height: 48px;
             background: #2d2d2d;
@@ -57,10 +57,10 @@
         /* Панель логов */
         .log-panel {
             position: fixed;
-            left: 10px;
-            bottom: 68px;
+            left: 20px;
+            bottom: 78px;
             width: 500px;
-            max-width: calc(100vw - 20px);
+            max-width: calc(100vw - 40px);
             background: #1b1f24;
             border: 2px solid #333333;
             color: #e0e0e0;
@@ -143,15 +143,16 @@
             text-transform: uppercase;
         }
 
-        /* Главный контейнер */
+        /* Главный контейнер - центрирован */
         .metro-container {
-            width: 1200px;
+            width: 1100px;
             max-width: 100%;
             background: #ffffff;
             display: flex;
             flex-direction: column;
             box-shadow: none;
             border: none;
+            margin: 0 auto;
         }
 
         /* Синяя полоска Skype */
@@ -160,7 +161,7 @@
             min-height: 60px;
             display: flex;
             align-items: center;
-            padding: 10px 15px;
+            padding: 10px 20px;
             color: white;
             font-size: 24px;
             font-weight: 300;
@@ -371,7 +372,8 @@
         /* Адаптивность для телефонов */
         @media (max-width: 768px) {
             body {
-                padding: 5px;
+                padding: 10px;
+                align-items: flex-start;
             }
 
             .metro-grid {
@@ -390,6 +392,7 @@
 
             .metro-header {
                 font-size: 20px;
+                padding: 10px 15px;
             }
 
             .metro-header .header-status {
@@ -410,15 +413,17 @@
             }
 
             .log-toggle-btn {
+                left: 10px;
+                bottom: 10px;
                 width: 44px;
                 height: 44px;
                 font-size: 18px;
             }
 
             .log-panel {
-                left: 5px;
-                bottom: 60px;
-                max-width: calc(100vw - 10px);
+                left: 10px;
+                bottom: 64px;
+                max-width: calc(100vw - 20px);
             }
 
             .log-content {
@@ -436,6 +441,11 @@
             .member-badge-metro {
                 font-size: 12px;
                 padding: 4px 8px;
+            }
+            
+            .metro-btn {
+                font-size: 14px;
+                padding: 10px 12px;
             }
         }
     </style>
@@ -547,11 +557,8 @@
         let currentRoom = null;
         let processingOffers = new Set();
         
-        // Ссылки на Firebase listeners
-        let membersRef = null;
-        let offersRef = null;
-        let answersRef = null;
-        let candidatesRef = null;
+        // Флаг для отслеживания состояния
+        let isInRoom = false;
 
         // DOM элементы
         const logPanel = document.getElementById('logPanel');
@@ -707,7 +714,6 @@
                 localStream.getTracks().forEach(track => {
                     try {
                         pc.addTrack(track, localStream);
-                        log(`трек добавлен для ${targetId}`, 'info');
                     } catch (err) {
                         log(`ошибка добавления трека: ${err.message}`, 'error');
                     }
@@ -797,23 +803,14 @@
         }
 
         // ------------------------------------------------------------
-        // Очистка всех слушателей Firebase
-        function cleanupListeners() {
-            if (membersRef) {
-                membersRef.off();
-                membersRef = null;
-            }
-            if (offersRef) {
-                offersRef.off();
-                offersRef = null;
-            }
-            if (answersRef) {
-                answersRef.off();
-                answersRef = null;
-            }
-            if (candidatesRef) {
-                candidatesRef.off();
-                candidatesRef = null;
+        // Полная очистка всех слушателей Firebase
+        function cleanupAllListeners() {
+            if (currentRoom) {
+                // Удаляем все слушатели для текущей комнаты
+                db.ref(`rooms/${currentRoom}/members`).off();
+                db.ref(`rooms/${currentRoom}/offers`).off();
+                db.ref(`rooms/${currentRoom}/answers`).off();
+                db.ref(`rooms/${currentRoom}/candidates`).off();
             }
         }
 
@@ -821,17 +818,17 @@
         // Вход в комнату
         async function joinRoom(roomId) {
             if (!roomId) { log('введите id комнаты', 'error'); return; }
-            if (currentRoom) { 
-                log('сначала покиньте комнату', 'warning'); 
-                return;
+            
+            // Если уже в комнате, сначала выходим
+            if (currentRoom) {
+                log('сначала покидаем текущую комнату', 'warning');
+                await leaveRoom();
             }
 
             await initMic().catch(() => {});
 
-            // Очищаем старые слушатели на всякий случай
-            cleanupListeners();
-            
             currentRoom = roomId;
+            isInRoom = true;
             currentRoomSpan.innerText = roomId;
             log(`вход в комнату: ${roomId}`, 'info');
 
@@ -841,8 +838,9 @@
             });
 
             // Слушаем участников
-            membersRef = db.ref(`rooms/${roomId}/members`);
-            membersRef.on('value', (snap) => {
+            db.ref(`rooms/${roomId}/members`).on('value', (snap) => {
+                if (!isInRoom) return;
+                
                 const members = snap.val() || {};
                 const userIds = Object.keys(members);
                 
@@ -861,9 +859,8 @@
 
                 // Создаём пиры для новых участников
                 userIds.forEach(async (uid) => {
-                    if (uid === myUserId) return;
+                    if (uid === myUserId || !isInRoom) return;
                     
-                    // Проверяем, нужно ли создавать offer
                     if (!peers.has(uid) && shouldCreateOffer(uid)) {
                         log(`новый участник ${uid}, создаю offer`, 'info');
                         
@@ -907,8 +904,9 @@
             });
 
             // Слушаем offers
-            offersRef = db.ref(`rooms/${roomId}/offers`);
-            offersRef.on('child_added', (snap) => {
+            db.ref(`rooms/${roomId}/offers`).on('child_added', (snap) => {
+                if (!isInRoom) return;
+                
                 const fromUser = snap.key;
                 if (fromUser === myUserId) return;
                 if (processingOffers.has(fromUser)) return;
@@ -938,8 +936,6 @@
                                     sdp: answer.sdp
                                 });
                                 log(`answer отправлен для ${fromUser}`, 'success');
-                            } else {
-                                log(`пропускаем offer от ${fromUser} - состояние ${pc.signalingState}`, 'info');
                             }
                             
                         } catch (err) {
@@ -952,8 +948,9 @@
             });
 
             // Слушаем answers
-            answersRef = db.ref(`rooms/${roomId}/answers`);
-            answersRef.on('child_added', (snap) => {
+            db.ref(`rooms/${roomId}/answers`).on('child_added', (snap) => {
+                if (!isInRoom) return;
+                
                 const fromUser = snap.key;
                 if (fromUser === myUserId) return;
                 
@@ -968,8 +965,6 @@
                             if (pc && pc.signalingState === 'have-local-offer') {
                                 await pc.setRemoteDescription(new RTCSessionDescription(answerData));
                                 log(`remote answer установлен для ${fromUser}`, 'success');
-                            } else if (pc) {
-                                log(`пропускаем answer от ${fromUser} - состояние ${pc.signalingState}`, 'info');
                             }
                         } catch (err) {
                             log(`ошибка установки answer: ${err.message}`, 'error');
@@ -979,8 +974,9 @@
             });
 
             // Слушаем candidates
-            candidatesRef = db.ref(`rooms/${roomId}/candidates`);
-            candidatesRef.on('child_added', (snap) => {
+            db.ref(`rooms/${roomId}/candidates`).on('child_added', (snap) => {
+                if (!isInRoom) return;
+                
                 const fromUser = snap.key;
                 if (fromUser === myUserId) return;
                 
@@ -1008,6 +1004,7 @@
             }
 
             const roomId = currentRoom;
+            isInRoom = false;
             
             try {
                 // Удаляем себя из members
@@ -1018,8 +1015,8 @@
                 await db.ref(`rooms/${roomId}/answers/${myUserId}`).remove();
                 await db.ref(`rooms/${roomId}/candidates/${myUserId}`).remove();
                 
-                // Очищаем слушатели
-                cleanupListeners();
+                // Очищаем все слушатели
+                cleanupAllListeners();
                 
                 // Закрываем все пиры
                 await closeAllPeers();
