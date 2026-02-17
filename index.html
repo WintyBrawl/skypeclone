@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes">
     <title>Skype · голосовой чат</title>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
@@ -20,20 +20,20 @@
             background: #1b1f24;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             min-height: 100vh;
             margin: 0;
-            padding: 20px;
+            padding: 10px;
             position: relative;
         }
 
-        /* Кнопка показа логов в левом нижнем углу */
+        /* Кнопка показа логов */
         .log-toggle-btn {
             position: fixed;
-            left: 20px;
-            bottom: 20px;
-            width: 50px;
-            height: 50px;
+            left: 10px;
+            bottom: 10px;
+            width: 48px;
+            height: 48px;
             background: #2d2d2d;
             border: 2px solid #404040;
             color: white;
@@ -54,13 +54,13 @@
             border-color: #008fc0;
         }
 
-        /* Панель логов (скрыта по умолчанию) */
+        /* Панель логов */
         .log-panel {
             position: fixed;
-            left: 20px;
-            bottom: 80px;
+            left: 10px;
+            bottom: 68px;
             width: 500px;
-            max-width: calc(100vw - 40px);
+            max-width: calc(100vw - 20px);
             background: #1b1f24;
             border: 2px solid #333333;
             color: #e0e0e0;
@@ -103,14 +103,10 @@
             justify-content: center;
         }
 
-        .log-close:hover {
-            background: #3d3d3d;
-        }
-
         .log-content {
-            height: 300px;
+            height: 250px;
             overflow-y: auto;
-            padding: 15px;
+            padding: 10px;
         }
 
         .log-line {
@@ -118,6 +114,8 @@
             border-bottom: 1px solid #333333;
             color: #cccccc;
             font-family: 'Segoe UI', monospace;
+            font-size: 12px;
+            word-break: break-word;
         }
 
         .log-line.error { color: #ff8a8a; }
@@ -136,22 +134,18 @@
             border: 2px solid #4a4a4a;
             color: white;
             font-family: 'Segoe UI', sans-serif;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 300;
-            padding: 8px 12px;
+            padding: 8px;
             cursor: pointer;
             flex: 1;
             text-align: center;
             text-transform: uppercase;
         }
 
-        .log-btn:hover {
-            background: #4a4a4a;
-        }
-
         /* Главный контейнер */
         .metro-container {
-            width: 1100px;
+            width: 1200px;
             max-width: 100%;
             background: #ffffff;
             display: flex;
@@ -163,14 +157,15 @@
         /* Синяя полоска Skype */
         .metro-header {
             background: #00aff0;
-            height: 60px;
+            min-height: 60px;
             display: flex;
             align-items: center;
-            padding: 0 20px;
+            padding: 10px 15px;
             color: white;
             font-size: 24px;
             font-weight: 300;
-            letter-spacing: 0.5px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .metro-header span {
@@ -180,53 +175,65 @@
 
         .metro-header .header-status {
             margin-left: auto;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 300;
             opacity: 0.9;
+            white-space: nowrap;
         }
 
-        /* Основная сетка */
+        /* Основная сетка - адаптивная */
         .metro-grid {
             display: flex;
             flex-direction: row;
+            flex-wrap: wrap;
             min-height: 600px;
         }
 
         /* Левая колонка */
         .metro-tile-profile {
             width: 320px;
+            max-width: 100%;
             background: #f0f0f0;
             border-right: 2px solid #d0d0d0;
             padding: 0;
+        }
+
+        /* Правая колонка */
+        .metro-tile-logs {
+            flex: 1;
+            min-width: 300px;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
         }
 
         /* Плитка с ID пользователя */
         .tile {
             background: #00aff0;
             color: white;
-            padding: 25px 20px;
+            padding: 20px 15px;
             margin: 0;
             border-bottom: 2px solid #008fc0;
         }
 
         .tile-title {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 300;
             text-transform: uppercase;
             opacity: 0.8;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             letter-spacing: 0.5px;
         }
 
         .tile-content {
-            font-size: 28px;
+            font-size: 22px;
             font-weight: 300;
             word-break: break-all;
             font-family: 'Segoe UI', monospace;
         }
 
         .tile-content-small {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 300;
             opacity: 0.9;
         }
@@ -235,7 +242,7 @@
         .tile-room {
             background: #2d2d2d;
             color: white;
-            padding: 25px 20px;
+            padding: 20px 15px;
             border-bottom: 2px solid #404040;
         }
 
@@ -245,11 +252,13 @@
             color: white;
             font-family: 'Segoe UI', sans-serif;
             font-size: 16px;
-            padding: 15px 15px;
+            padding: 12px;
             width: 100%;
-            margin: 10px 0;
+            margin: 8px 0;
             outline: none;
             font-weight: 300;
+            -webkit-appearance: none;
+            border-radius: 0;
         }
 
         .metro-input:focus {
@@ -262,26 +271,26 @@
             border: 2px solid #008fc0;
             color: white;
             font-family: 'Segoe UI', sans-serif;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 300;
-            padding: 15px 20px;
-            margin: 5px 0;
+            padding: 12px 15px;
+            margin: 4px 0;
             width: 100%;
             cursor: pointer;
             text-align: left;
             transition: background 0.1s;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            -webkit-appearance: none;
+            border-radius: 0;
         }
 
         .metro-btn:hover {
             background: #1fc2ff;
-            border-color: #00a0e0;
         }
 
         .metro-btn:active {
             background: #008fc0;
-            border-color: #0070a0;
         }
 
         .metro-btn-green {
@@ -289,67 +298,45 @@
             border-color: #009040;
         }
 
-        .metro-btn-green:hover {
-            background: #20c070;
-        }
-
-        .metro-btn-green:active {
-            background: #009040;
-        }
-
         .metro-btn-red {
             background: #e81123;
             border-color: #c01120;
-        }
-
-        .metro-btn-red:hover {
-            background: #ff2133;
-        }
-
-        .metro-btn-red:active {
-            background: #c01120;
         }
 
         /* Плитка участников */
         .tile-members {
             background: #f0f0f0;
             color: #1b1f24;
-            padding: 25px 20px;
+            padding: 20px 15px;
             border-bottom: 2px solid #d0d0d0;
         }
 
         .members-list {
             display: flex;
             flex-wrap: wrap;
-            margin-top: 15px;
-            gap: 8px;
+            margin-top: 10px;
+            gap: 6px;
         }
 
         .member-badge-metro {
             background: #00aff0;
             color: white;
-            padding: 8px 15px;
-            font-size: 14px;
+            padding: 6px 12px;
+            font-size: 13px;
             font-weight: 300;
             border: 2px solid #008fc0;
             display: inline-block;
-        }
-
-        /* Правая колонка */
-        .metro-tile-logs {
-            flex: 1;
-            background: #ffffff;
-            display: flex;
-            flex-direction: column;
+            word-break: break-word;
         }
 
         /* Статус бар */
         .status-bar-metro {
             background: #1b1f24;
             color: white;
-            padding: 15px 20px;
+            padding: 12px 15px;
             display: flex;
-            gap: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
             border-bottom: 2px solid #333333;
             font-weight: 300;
         }
@@ -357,15 +344,16 @@
         .status-item {
             display: flex;
             align-items: center;
-            font-size: 15px;
+            font-size: 14px;
         }
 
         .status-dot {
-            width: 12px;
-            height: 12px;
+            width: 10px;
+            height: 10px;
             background: #f1c40f;
-            margin-right: 10px;
+            margin-right: 8px;
             border: none;
+            flex-shrink: 0;
         }
 
         .status-dot.green { background: #00b050; }
@@ -373,18 +361,90 @@
         .status-dot.yellow { background: #f1c40f; }
         .status-dot.gray { background: #7e7e7e; }
 
-        /* Контент правой колонки (пустой) */
+        /* Правая колонка контент */
         .right-content {
             flex: 1;
             background: #f5f5f5;
+            min-height: 200px;
+        }
+
+        /* Адаптивность для телефонов */
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+            }
+
+            .metro-grid {
+                flex-direction: column;
+            }
+
+            .metro-tile-profile {
+                width: 100%;
+                border-right: none;
+                border-bottom: 2px solid #d0d0d0;
+            }
+
+            .metro-tile-logs {
+                width: 100%;
+            }
+
+            .metro-header {
+                font-size: 20px;
+            }
+
+            .metro-header .header-status {
+                font-size: 12px;
+                white-space: normal;
+            }
+
+            .tile-content {
+                font-size: 18px;
+            }
+
+            .status-bar-metro {
+                gap: 10px;
+            }
+
+            .status-item {
+                font-size: 12px;
+            }
+
+            .log-toggle-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 18px;
+            }
+
+            .log-panel {
+                left: 5px;
+                bottom: 60px;
+                max-width: calc(100vw - 10px);
+            }
+
+            .log-content {
+                height: 200px;
+            }
+        }
+
+        /* Для очень маленьких экранов */
+        @media (max-width: 480px) {
+            .status-bar-metro {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .member-badge-metro {
+                font-size: 12px;
+                padding: 4px 8px;
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Кнопка показа логов (квадратная в левом нижнем углу) -->
+    <!-- Кнопка показа логов -->
     <button class="log-toggle-btn" id="logToggleBtn" title="Показать логи">📋</button>
 
-    <!-- Панель логов (скрыта) -->
+    <!-- Панель логов -->
     <div class="log-panel" id="logPanel">
         <div class="log-header">
             <span>системные логи</span>
@@ -407,15 +467,15 @@
             <div class="header-status" id="fbStatusText">подключение...</div>
         </div>
 
-        <!-- Основная сетка с плитками -->
+        <!-- Основная сетка -->
         <div class="metro-grid">
-            <!-- Левая колонка - плитки -->
+            <!-- Левая колонка -->
             <div class="metro-tile-profile">
                 <!-- Плитка с моим ID -->
                 <div class="tile">
                     <div class="tile-title">мой идентификатор</div>
                     <div class="tile-content" id="myUserId">загрузка...</div>
-                    <div class="tile-content-small" style="margin-top: 10px;">поделитесь этим id</div>
+                    <div class="tile-content-small" style="margin-top: 8px;">поделитесь этим id</div>
                 </div>
 
                 <!-- Плитка комната -->
@@ -432,14 +492,14 @@
                 <div class="tile-members">
                     <div class="tile-title">участники (<span id="memberCount">0</span>/4)</div>
                     <div id="membersList" class="members-list"></div>
-                    <div style="margin-top: 20px; font-weight: 300;">
+                    <div style="margin-top: 15px; font-weight: 300;">
                         <span class="metro-text-small">текущая: </span>
                         <span id="currentRoom" style="font-weight: 300;">—</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Правая колонка - статус -->
+            <!-- Правая колонка -->
             <div class="metro-tile-logs">
                 <!-- Статус бар -->
                 <div class="status-bar-metro">
@@ -485,9 +545,9 @@
         let localStream = null;
         let peers = new Map();
         let currentRoom = null;
-        let roomMembers = new Set();
         let processingOffers = new Set();
         
+        // Ссылки на Firebase listeners
         let membersRef = null;
         let offersRef = null;
         let answersRef = null;
@@ -625,7 +685,9 @@
         async function createPeer(targetId) {
             if (peers.has(targetId)) {
                 log(`закрываем старый пир ${targetId}`, 'warning');
-                peers.get(targetId).close();
+                try {
+                    peers.get(targetId).close();
+                } catch (err) {}
                 peers.delete(targetId);
             }
 
@@ -645,6 +707,7 @@
                 localStream.getTracks().forEach(track => {
                     try {
                         pc.addTrack(track, localStream);
+                        log(`трек добавлен для ${targetId}`, 'info');
                     } catch (err) {
                         log(`ошибка добавления трека: ${err.message}`, 'error');
                     }
@@ -734,29 +797,58 @@
         }
 
         // ------------------------------------------------------------
+        // Очистка всех слушателей Firebase
+        function cleanupListeners() {
+            if (membersRef) {
+                membersRef.off();
+                membersRef = null;
+            }
+            if (offersRef) {
+                offersRef.off();
+                offersRef = null;
+            }
+            if (answersRef) {
+                answersRef.off();
+                answersRef = null;
+            }
+            if (candidatesRef) {
+                candidatesRef.off();
+                candidatesRef = null;
+            }
+        }
+
+        // ------------------------------------------------------------
         // Вход в комнату
         async function joinRoom(roomId) {
             if (!roomId) { log('введите id комнаты', 'error'); return; }
-            if (currentRoom) { log('сначала покиньте комнату', 'warning'); return; }
+            if (currentRoom) { 
+                log('сначала покиньте комнату', 'warning'); 
+                return;
+            }
 
             await initMic().catch(() => {});
 
+            // Очищаем старые слушатели на всякий случай
+            cleanupListeners();
+            
             currentRoom = roomId;
             currentRoomSpan.innerText = roomId;
             log(`вход в комнату: ${roomId}`, 'info');
 
+            // Добавляем себя
             await db.ref(`rooms/${roomId}/members/${myUserId}`).set({
                 joined: Date.now()
             });
 
+            // Слушаем участников
             membersRef = db.ref(`rooms/${roomId}/members`);
             membersRef.on('value', (snap) => {
                 const members = snap.val() || {};
                 const userIds = Object.keys(members);
-                roomMembers = new Set(userIds);
                 
                 memberCount.innerText = userIds.length;
                 
+                // Отображаем список
                 membersList.innerHTML = '';
                 userIds.forEach(uid => {
                     const span = document.createElement('span');
@@ -767,8 +859,11 @@
 
                 log(`участники: ${userIds.join(', ') || 'никого'}`, 'info');
 
+                // Создаём пиры для новых участников
                 userIds.forEach(async (uid) => {
                     if (uid === myUserId) return;
+                    
+                    // Проверяем, нужно ли создавать offer
                     if (!peers.has(uid) && shouldCreateOffer(uid)) {
                         log(`новый участник ${uid}, создаю offer`, 'info');
                         
@@ -789,9 +884,12 @@
                         } catch (err) {
                             log(`ошибка создания offer: ${err.message}`, 'error');
                         }
+                    } else if (!peers.has(uid)) {
+                        log(`жду offer от ${uid}`, 'info');
                     }
                 });
 
+                // Удаляем пиры вышедших участников
                 for (let uid of peers.keys()) {
                     if (!userIds.includes(uid)) {
                         log(`участник ${uid} вышел`, 'info');
@@ -808,6 +906,7 @@
                 updatePeerStats();
             });
 
+            // Слушаем offers
             offersRef = db.ref(`rooms/${roomId}/offers`);
             offersRef.on('child_added', (snap) => {
                 const fromUser = snap.key;
@@ -827,17 +926,21 @@
                             }
                             
                             const pc = peers.get(fromUser);
-                            await pc.setRemoteDescription(new RTCSessionDescription(offerData));
-                            log(`remote description установлен для ${fromUser}`, 'success');
-                            
-                            const answer = await pc.createAnswer();
-                            await pc.setLocalDescription(answer);
-                            
-                            await db.ref(`rooms/${roomId}/answers/${myUserId}/${fromUser}`).set({
-                                type: answer.type,
-                                sdp: answer.sdp
-                            });
-                            log(`answer отправлен для ${fromUser}`, 'success');
+                            if (pc.signalingState === 'stable') {
+                                await pc.setRemoteDescription(new RTCSessionDescription(offerData));
+                                log(`remote description установлен для ${fromUser}`, 'success');
+                                
+                                const answer = await pc.createAnswer();
+                                await pc.setLocalDescription(answer);
+                                
+                                await db.ref(`rooms/${roomId}/answers/${myUserId}/${fromUser}`).set({
+                                    type: answer.type,
+                                    sdp: answer.sdp
+                                });
+                                log(`answer отправлен для ${fromUser}`, 'success');
+                            } else {
+                                log(`пропускаем offer от ${fromUser} - состояние ${pc.signalingState}`, 'info');
+                            }
                             
                         } catch (err) {
                             log(`ошибка обработки offer: ${err.message}`, 'error');
@@ -848,6 +951,7 @@
                 }
             });
 
+            // Слушаем answers
             answersRef = db.ref(`rooms/${roomId}/answers`);
             answersRef.on('child_added', (snap) => {
                 const fromUser = snap.key;
@@ -861,9 +965,11 @@
                     (async () => {
                         try {
                             const pc = peers.get(fromUser);
-                            if (pc && pc.signalingState !== 'stable') {
+                            if (pc && pc.signalingState === 'have-local-offer') {
                                 await pc.setRemoteDescription(new RTCSessionDescription(answerData));
                                 log(`remote answer установлен для ${fromUser}`, 'success');
+                            } else if (pc) {
+                                log(`пропускаем answer от ${fromUser} - состояние ${pc.signalingState}`, 'info');
                             }
                         } catch (err) {
                             log(`ошибка установки answer: ${err.message}`, 'error');
@@ -872,6 +978,7 @@
                 }
             });
 
+            // Слушаем candidates
             candidatesRef = db.ref(`rooms/${roomId}/candidates`);
             candidatesRef.on('child_added', (snap) => {
                 const fromUser = snap.key;
@@ -903,16 +1010,18 @@
             const roomId = currentRoom;
             
             try {
+                // Удаляем себя из members
                 await db.ref(`rooms/${roomId}/members/${myUserId}`).remove();
+                
+                // Удаляем свои сигналы
                 await db.ref(`rooms/${roomId}/offers/${myUserId}`).remove();
                 await db.ref(`rooms/${roomId}/answers/${myUserId}`).remove();
                 await db.ref(`rooms/${roomId}/candidates/${myUserId}`).remove();
                 
-                if (membersRef) membersRef.off();
-                if (offersRef) offersRef.off();
-                if (answersRef) answersRef.off();
-                if (candidatesRef) candidatesRef.off();
+                // Очищаем слушатели
+                cleanupListeners();
                 
+                // Закрываем все пиры
                 await closeAllPeers();
                 processingOffers.clear();
                 
@@ -950,6 +1059,7 @@
 
         leaveBtn.addEventListener('click', leaveRoom);
 
+        // При закрытии страницы
         window.addEventListener('beforeunload', () => {
             if (currentRoom) {
                 db.ref(`rooms/${currentRoom}/members/${myUserId}`).remove();
