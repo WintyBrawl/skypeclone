@@ -562,6 +562,9 @@
         
         // Таймер для проверки живых участников
         let cleanupInterval = null;
+        
+        // Таймер для обновления статуса
+        let statusInterval = null;
 
         // DOM элементы
         const logPanel = document.getElementById('logPanel');
@@ -717,6 +720,7 @@
                 localStream.getTracks().forEach(track => {
                     try {
                         pc.addTrack(track, localStream);
+                        log(`трек добавлен для ${targetId}`, 'info');
                     } catch (err) {
                         log(`ошибка добавления трека: ${err.message}`, 'error');
                     }
@@ -782,6 +786,7 @@
         // ------------------------------------------------------------
         // Сравнение ID для определения роли
         function shouldCreateOffer(remoteId) {
+            // Только тот, у кого ID меньше, создаёт offer
             return myUserId < remoteId;
         }
 
@@ -806,7 +811,7 @@
         }
 
         // ------------------------------------------------------------
-        // Очистка старых участников (тех, кто не обновлял свой статус)
+        // Очистка старых участников
         function startCleanupTimer(roomId) {
             if (cleanupInterval) clearInterval(cleanupInterval);
             
@@ -819,10 +824,9 @@
                     const now = Date.now();
                     
                     for (const [uid, data] of Object.entries(members)) {
-                        // Если участник не обновлял статус больше 30 секунд, удаляем его
-                        if (data.joined && now - data.joined > 30000) {
+                        if (data.joined && now - data.joined > 15000) {
                             if (uid !== myUserId) {
-                                log(`удаляем старого участника ${uid}`, 'warning');
+                                log(`удаляем неактивного участника ${uid}`, 'warning');
                                 await db.ref(`rooms/${roomId}/members/${uid}`).remove();
                                 await db.ref(`rooms/${roomId}/offers/${uid}`).remove();
                                 await db.ref(`rooms/${roomId}/answers/${uid}`).remove();
@@ -854,29 +858,36 @@
             currentRoomSpan.innerText = roomId;
             log(`вход в комнату: ${roomId}`, 'info');
 
-            // Добавляем себя с временной меткой
+            // Добавляем себя
             await db.ref(`rooms/${roomId}/members/${myUserId}`).set({
                 joined: Date.now()
             });
 
             // Запускаем таймер очистки
             startCleanupTimer(roomId);
+            
+            // Запускаем обновление статуса
+            if (statusInterval) clearInterval(statusInterval);
+            statusInterval = setInterval(() => {
+                if (currentRoom && isInRoom) {
+                    db.ref(`rooms/${currentRoom}/members/${myUserId}`).update({
+                        joined: Date.now()
+                    });
+                }
+            }, 5000);
 
             // Слушаем участников
             db.ref(`rooms/${roomId}/members`).on('value', (snap) => {
                 if (!isInRoom) return;
                 
                 const members = snap.val() || {};
-                // Фильтруем только живых участников (joined не больше 30 секунд)
                 const now = Date.now();
-                const activeMembers = {};
                 
+                // Фильтруем активных участников
+                const activeMembers = {};
                 for (const [uid, data] of Object.entries(members)) {
-                    if (data.joined && now - data.joined <= 30000) {
+                    if (data.joined && now - data.joined <= 20000) {
                         activeMembers[uid] = data;
-                    } else if (uid !== myUserId) {
-                        // Удаляем старых участников
-                        db.ref(`rooms/${roomId}/members/${uid}`).remove();
                     }
                 }
                 
@@ -899,8 +910,9 @@
                 userIds.forEach(async (uid) => {
                     if (uid === myUserId || !isInRoom) return;
                     
+                    // Проверяем, должны ли мы создавать offer
                     if (!peers.has(uid) && shouldCreateOffer(uid)) {
-                        log(`новый участник ${uid}, создаю offer`, 'info');
+                        log(`новый участник ${uid}, создаю offer (я инициатор)`, 'info');
                         
                         try {
                             const pc = await createPeer(uid);
@@ -920,7 +932,7 @@
                             log(`ошибка создания offer: ${err.message}`, 'error');
                         }
                     } else if (!peers.has(uid)) {
-                        log(`жду offer от ${uid}`, 'info');
+                        log(`жду offer от ${uid} (он инициатор)`, 'info');
                     }
                 });
 
@@ -949,6 +961,7 @@
                 if (fromUser === myUserId) return;
                 if (processingOffers.has(fromUser)) return;
                 
+                // Проверяем, что offer адресован нам
                 const offers = snap.val();
                 if (offers && offers[myUserId]) {
                     const offerData = offers[myUserId];
@@ -1044,10 +1057,14 @@
             const roomId = currentRoom;
             isInRoom = false;
             
-            // Останавливаем таймер очистки
+            // Останавливаем таймеры
             if (cleanupInterval) {
                 clearInterval(cleanupInterval);
                 cleanupInterval = null;
+            }
+            if (statusInterval) {
+                clearInterval(statusInterval);
+                statusInterval = null;
             }
             
             try {
@@ -1111,20 +1128,14 @@
             if (cleanupInterval) {
                 clearInterval(cleanupInterval);
             }
+            if (statusInterval) {
+                clearInterval(statusInterval);
+            }
         });
 
         // ------------------------------------------------------------
         // Старт
         log(`ваш id: ${myUserId}`, 'info');
-        
-        // Периодически обновляем свой статус в комнате
-        setInterval(() => {
-            if (currentRoom && isInRoom) {
-                db.ref(`rooms/${currentRoom}/members/${myUserId}`).update({
-                    joined: Date.now()
-                });
-            }
-        }, 10000);
     </script>
 </body>
 </html>
