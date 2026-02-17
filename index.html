@@ -8,7 +8,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
     <style>
-        /* Metro/Modern UI стиль */
         * {
             margin: 0;
             padding: 0;
@@ -27,7 +26,6 @@
             position: relative;
         }
 
-        /* Кнопка показа логов */
         .log-toggle-btn {
             position: fixed;
             left: 20px;
@@ -54,7 +52,6 @@
             border-color: #008fc0;
         }
 
-        /* Панель логов */
         .log-panel {
             position: fixed;
             left: 20px;
@@ -143,7 +140,6 @@
             text-transform: uppercase;
         }
 
-        /* Главный контейнер - центрирован */
         .metro-container {
             width: 1100px;
             max-width: 100%;
@@ -155,7 +151,6 @@
             margin: 0 auto;
         }
 
-        /* Синяя полоска Skype */
         .metro-header {
             background: #00aff0;
             min-height: 60px;
@@ -182,7 +177,6 @@
             white-space: nowrap;
         }
 
-        /* Основная сетка - адаптивная */
         .metro-grid {
             display: flex;
             flex-direction: row;
@@ -190,7 +184,6 @@
             min-height: 600px;
         }
 
-        /* Левая колонка */
         .metro-tile-profile {
             width: 320px;
             max-width: 100%;
@@ -199,7 +192,6 @@
             padding: 0;
         }
 
-        /* Правая колонка */
         .metro-tile-logs {
             flex: 1;
             min-width: 300px;
@@ -208,7 +200,6 @@
             flex-direction: column;
         }
 
-        /* Плитка с ID пользователя */
         .tile {
             background: #00aff0;
             color: white;
@@ -239,7 +230,6 @@
             opacity: 0.9;
         }
 
-        /* Плитка комнаты */
         .tile-room {
             background: #2d2d2d;
             color: white;
@@ -304,7 +294,6 @@
             border-color: #c01120;
         }
 
-        /* Плитка участников */
         .tile-members {
             background: #f0f0f0;
             color: #1b1f24;
@@ -330,7 +319,6 @@
             word-break: break-word;
         }
 
-        /* Статус бар */
         .status-bar-metro {
             background: #1b1f24;
             color: white;
@@ -362,14 +350,28 @@
         .status-dot.yellow { background: #f1c40f; }
         .status-dot.gray { background: #7e7e7e; }
 
-        /* Правая колонка контент */
         .right-content {
             flex: 1;
             background: #f5f5f5;
             min-height: 200px;
         }
 
-        /* Адаптивность для телефонов */
+        .audio-test-btn {
+            background: #3a3a3a;
+            border: 2px solid #555555;
+            color: white;
+            padding: 10px;
+            margin-top: 10px;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+            font-weight: 300;
+        }
+
+        .audio-test-btn:hover {
+            background: #4a4a4a;
+        }
+
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -431,7 +433,6 @@
             }
         }
 
-        /* Для очень маленьких экранов */
         @media (max-width: 480px) {
             .status-bar-metro {
                 flex-direction: column;
@@ -451,10 +452,8 @@
     </style>
 </head>
 <body>
-    <!-- Кнопка показа логов -->
     <button class="log-toggle-btn" id="logToggleBtn" title="Показать логи">📋</button>
 
-    <!-- Панель логов -->
     <div class="log-panel" id="logPanel">
         <div class="log-header">
             <span>системные логи</span>
@@ -469,26 +468,20 @@
         </div>
     </div>
 
-    <!-- Основной интерфейс -->
     <div class="metro-container">
-        <!-- Синяя полоска Skype -->
         <div class="metro-header">
             <span>skype</span>
             <div class="header-status" id="fbStatusText">подключение...</div>
         </div>
 
-        <!-- Основная сетка -->
         <div class="metro-grid">
-            <!-- Левая колонка -->
             <div class="metro-tile-profile">
-                <!-- Плитка с моим ID -->
                 <div class="tile">
                     <div class="tile-title">мой идентификатор</div>
                     <div class="tile-content" id="myUserId">загрузка...</div>
                     <div class="tile-content-small" style="margin-top: 8px;">поделитесь этим id</div>
                 </div>
 
-                <!-- Плитка комната -->
                 <div class="tile-room">
                     <div class="tile-title">комната</div>
                     <input type="text" id="roomInput" class="metro-input" placeholder="id комнаты" value="testroom">
@@ -496,9 +489,11 @@
                     <button class="metro-btn metro-btn-green" id="joinBtn">войти</button>
                     <button class="metro-btn metro-btn-red" id="leaveBtn">покинуть</button>
                     <button class="metro-btn" id="testMicBtn">тест микрофона</button>
+                    
+                    <!-- Кнопка принудительного включения звука -->
+                    <button class="audio-test-btn" id="forceAudioBtn">🔊 принудительно включить звук</button>
                 </div>
 
-                <!-- Плитка участники -->
                 <div class="tile-members">
                     <div class="tile-title">участники (<span id="memberCount">0</span>/4)</div>
                     <div id="membersList" class="members-list"></div>
@@ -509,9 +504,7 @@
                 </div>
             </div>
 
-            <!-- Правая колонка -->
             <div class="metro-tile-logs">
-                <!-- Статус бар -->
                 <div class="status-bar-metro">
                     <div class="status-item">
                         <div class="status-dot" id="fbStatus"></div>
@@ -526,15 +519,12 @@
                         <span>пиры: <span id="peerCount">0</span></span>
                     </div>
                 </div>
-                <!-- Пустая правая колонка -->
                 <div class="right-content"></div>
             </div>
         </div>
     </div>
 
     <script>
-        // ------------------------------------------------------------
-        // Firebase конфигурация
         const firebaseConfig = {
             apiKey: "AIzaSyDTx2Y9ctiWp26YeMmAHAxDZd_gVI_ZMdw",
             authDomain: "kcalls.firebaseapp.com",
@@ -547,8 +537,6 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // ------------------------------------------------------------
-        // Глобальные переменные
         const myUserId = 'user_' + Math.random().toString(36).substring(2, 8);
         document.getElementById('myUserId').innerText = myUserId;
 
@@ -556,17 +544,13 @@
         let peers = new Map();
         let currentRoom = null;
         let processingOffers = new Set();
-        
-        // Флаг для отслеживания состояния
         let isInRoom = false;
-        
-        // Таймер для проверки живых участников
         let cleanupInterval = null;
-        
-        // Таймер для обновления статуса
         let statusInterval = null;
+        
+        // Хранилище для аудиоэлементов
+        let audioElements = new Map();
 
-        // DOM элементы
         const logPanel = document.getElementById('logPanel');
         const logContent = document.getElementById('logContent');
         const logToggleBtn = document.getElementById('logToggleBtn');
@@ -581,15 +565,66 @@
         const clearLogsBtn = document.getElementById('clearLogsBtn');
         const memberCount = document.getElementById('memberCount');
         const peerCount = document.getElementById('peerCount');
+        const forceAudioBtn = document.getElementById('forceAudioBtn');
         
-        // Статус индикаторы
         const fbStatus = document.getElementById('fbStatus');
         const fbStatusText = document.getElementById('fbStatusText');
         const micStatus = document.getElementById('micStatus');
         const peerStatus = document.getElementById('peerStatus');
 
         // ------------------------------------------------------------
-        // Управление панелью логов
+        // Принудительное включение всех аудиоэлементов
+        async function forcePlayAllAudio() {
+            log('принудительное включение звука...', 'info');
+            
+            for (let [userId, audio] of audioElements) {
+                try {
+                    await audio.play();
+                    log(`звук включен для ${userId}`, 'success');
+                } catch (err) {
+                    log(`ошибка включения звука для ${userId}: ${err.message}`, 'error');
+                    
+                    // Пробуем пересоздать аудиоэлемент
+                    if (peers.has(userId)) {
+                        const pc = peers.get(userId);
+                        if (pc.getReceivers) {
+                            const receivers = pc.getReceivers();
+                            receivers.forEach(receiver => {
+                                if (receiver.track && receiver.track.kind === 'audio') {
+                                    const newAudio = new Audio();
+                                    newAudio.srcObject = new MediaStream([receiver.track]);
+                                    newAudio.autoplay = true;
+                                    newAudio.style.display = 'none';
+                                    document.body.appendChild(newAudio);
+                                    
+                                    audioElements.set(userId, newAudio);
+                                    newAudio.play().catch(e => log(`повторная ошибка: ${e.message}`, 'error'));
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        forceAudioBtn.addEventListener('click', forcePlayAllAudio);
+
+        // ------------------------------------------------------------
+        // Периодическая проверка звука (каждые 2 секунды после входа)
+        function startAudioCheck() {
+            setInterval(() => {
+                if (isInRoom && audioElements.size > 0) {
+                    audioElements.forEach((audio, userId) => {
+                        if (audio.paused) {
+                            log(`аудио для ${userId} на паузе, пробуем включить`, 'warning');
+                            audio.play().catch(err => log(`ошибка: ${err.message}`, 'error'));
+                        }
+                    });
+                }
+            }, 2000);
+        }
+
+        // ------------------------------------------------------------
         logToggleBtn.addEventListener('click', () => {
             logPanel.classList.toggle('visible');
             logToggleBtn.classList.toggle('active');
@@ -600,8 +635,6 @@
             logToggleBtn.classList.remove('active');
         });
 
-        // ------------------------------------------------------------
-        // Логирование
         function log(message, type = 'info') {
             const time = new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             const line = document.createElement('div');
@@ -636,8 +669,6 @@
             });
         });
 
-        // ------------------------------------------------------------
-        // Микрофон
         async function initMic(force = false) {
             if (localStream && !force) {
                 micStatus.className = 'status-dot green';
@@ -693,8 +724,6 @@
             }
         });
 
-        // ------------------------------------------------------------
-        // Создание пира
         async function createPeer(targetId) {
             if (peers.has(targetId)) {
                 log(`закрываем старый пир ${targetId}`, 'warning');
@@ -738,21 +767,40 @@
             pc.ontrack = (e) => {
                 log(`получен аудиотрек от ${targetId}`, 'success');
                 
-                let audio = document.getElementById(`audio_${targetId}`);
-                if (!audio) {
-                    audio = document.createElement('audio');
-                    audio.id = `audio_${targetId}`;
-                    audio.autoplay = true;
-                    audio.style.display = 'none';
-                    document.body.appendChild(audio);
-                }
+                // Создаем новый аудиоэлемент
+                const audio = new Audio();
+                audio.id = `audio_${targetId}`;
+                audio.autoplay = true;
+                audio.style.display = 'none';
                 
+                // Важно: устанавливаем srcObject до добавления в DOM
                 audio.srcObject = e.streams[0];
-                audio.play().catch(err => log(`ошибка воспроизведения: ${err.message}`, 'warning'));
+                
+                // Пробуем воспроизвести сразу
+                audio.play()
+                    .then(() => log(`аудио от ${targetId} воспроизводится`, 'success'))
+                    .catch(err => {
+                        log(`ошибка автовоспроизведения для ${targetId}: ${err.message}`, 'warning');
+                        // Сохраняем для принудительного воспроизведения
+                    });
+                
+                document.body.appendChild(audio);
+                audioElements.set(targetId, audio);
+                
+                // Пробуем еще раз через секунду
+                setTimeout(() => {
+                    if (audio.paused) {
+                        audio.play().catch(err => log(`повторная попытка: ${err.message}`, 'warning'));
+                    }
+                }, 1000);
             };
 
             pc.oniceconnectionstatechange = () => {
                 log(`ice ${targetId}: ${pc.iceConnectionState}`, 'info');
+                if (pc.iceConnectionState === 'connected') {
+                    // При установке соединения пробуем включить звук
+                    setTimeout(forcePlayAllAudio, 500);
+                }
                 updatePeerStats();
             };
 
@@ -766,14 +814,16 @@
             return pc;
         }
 
-        // ------------------------------------------------------------
-        // Закрыть все пиры
         async function closeAllPeers() {
             for (let [id, pc] of peers) {
                 try {
                     pc.close();
-                    let audio = document.getElementById(`audio_${id}`);
-                    if (audio) audio.remove();
+                    let audio = audioElements.get(id);
+                    if (audio) {
+                        audio.pause();
+                        audio.remove();
+                        audioElements.delete(id);
+                    }
                 } catch (err) {
                     log(`ошибка закрытия пира ${id}: ${err.message}`, 'error');
                 }
@@ -783,15 +833,10 @@
             log('все пиры закрыты', 'info');
         }
 
-        // ------------------------------------------------------------
-        // Сравнение ID для определения роли
         function shouldCreateOffer(remoteId) {
-            // Только тот, у кого ID меньше, создаёт offer
             return myUserId < remoteId;
         }
 
-        // ------------------------------------------------------------
-        // Обновление статистики пиров
         function updatePeerStats() {
             let connected = 0;
             for (let pc of peers.values()) {
@@ -810,8 +855,6 @@
             }
         }
 
-        // ------------------------------------------------------------
-        // Очистка старых участников
         function startCleanupTimer(roomId) {
             if (cleanupInterval) clearInterval(cleanupInterval);
             
@@ -840,12 +883,9 @@
             }, 5000);
         }
 
-        // ------------------------------------------------------------
-        // Вход в комнату
         async function joinRoom(roomId) {
             if (!roomId) { log('введите id комнаты', 'error'); return; }
             
-            // Если уже в комнате, сначала выходим
             if (currentRoom) {
                 log('сначала покидаем текущую комнату', 'warning');
                 await leaveRoom();
@@ -858,15 +898,12 @@
             currentRoomSpan.innerText = roomId;
             log(`вход в комнату: ${roomId}`, 'info');
 
-            // Добавляем себя
             await db.ref(`rooms/${roomId}/members/${myUserId}`).set({
                 joined: Date.now()
             });
 
-            // Запускаем таймер очистки
             startCleanupTimer(roomId);
             
-            // Запускаем обновление статуса
             if (statusInterval) clearInterval(statusInterval);
             statusInterval = setInterval(() => {
                 if (currentRoom && isInRoom) {
@@ -876,14 +913,15 @@
                 }
             }, 5000);
 
-            // Слушаем участников
+            // Запускаем проверку звука
+            startAudioCheck();
+
             db.ref(`rooms/${roomId}/members`).on('value', (snap) => {
                 if (!isInRoom) return;
                 
                 const members = snap.val() || {};
                 const now = Date.now();
                 
-                // Фильтруем активных участников
                 const activeMembers = {};
                 for (const [uid, data] of Object.entries(members)) {
                     if (data.joined && now - data.joined <= 20000) {
@@ -895,7 +933,6 @@
                 
                 memberCount.innerText = userIds.length;
                 
-                // Отображаем список
                 membersList.innerHTML = '';
                 userIds.forEach(uid => {
                     const span = document.createElement('span');
@@ -906,11 +943,9 @@
 
                 log(`участники: ${userIds.join(', ') || 'никого'}`, 'info');
 
-                // Создаём пиры для новых участников
                 userIds.forEach(async (uid) => {
                     if (uid === myUserId || !isInRoom) return;
                     
-                    // Проверяем, должны ли мы создавать offer
                     if (!peers.has(uid) && shouldCreateOffer(uid)) {
                         log(`новый участник ${uid}, создаю offer (я инициатор)`, 'info');
                         
@@ -936,15 +971,18 @@
                     }
                 });
 
-                // Удаляем пиры вышедших участников
                 for (let uid of peers.keys()) {
                     if (!userIds.includes(uid)) {
                         log(`участник ${uid} вышел`, 'info');
                         try {
                             peers.get(uid).close();
                             peers.delete(uid);
-                            let audio = document.getElementById(`audio_${uid}`);
-                            if (audio) audio.remove();
+                            let audio = audioElements.get(uid);
+                            if (audio) {
+                                audio.pause();
+                                audio.remove();
+                                audioElements.delete(uid);
+                            }
                         } catch (err) {
                             log(`ошибка удаления пира: ${err.message}`, 'error');
                         }
@@ -953,7 +991,6 @@
                 updatePeerStats();
             });
 
-            // Слушаем offers
             db.ref(`rooms/${roomId}/offers`).on('child_added', (snap) => {
                 if (!isInRoom) return;
                 
@@ -961,7 +998,6 @@
                 if (fromUser === myUserId) return;
                 if (processingOffers.has(fromUser)) return;
                 
-                // Проверяем, что offer адресован нам
                 const offers = snap.val();
                 if (offers && offers[myUserId]) {
                     const offerData = offers[myUserId];
@@ -998,7 +1034,6 @@
                 }
             });
 
-            // Слушаем answers
             db.ref(`rooms/${roomId}/answers`).on('child_added', (snap) => {
                 if (!isInRoom) return;
                 
@@ -1024,7 +1059,6 @@
                 }
             });
 
-            // Слушаем candidates
             db.ref(`rooms/${roomId}/candidates`).on('child_added', (snap) => {
                 if (!isInRoom) return;
                 
@@ -1046,8 +1080,6 @@
             log('успешно вошли в комнату', 'success');
         }
 
-        // ------------------------------------------------------------
-        // Выход из комнаты
         async function leaveRoom() {
             if (!currentRoom) {
                 log('вы не в комнате', 'warning');
@@ -1057,7 +1089,6 @@
             const roomId = currentRoom;
             isInRoom = false;
             
-            // Останавливаем таймеры
             if (cleanupInterval) {
                 clearInterval(cleanupInterval);
                 cleanupInterval = null;
@@ -1068,21 +1099,16 @@
             }
             
             try {
-                // Удаляем себя из members
                 await db.ref(`rooms/${roomId}/members/${myUserId}`).remove();
-                
-                // Удаляем свои сигналы
                 await db.ref(`rooms/${roomId}/offers/${myUserId}`).remove();
                 await db.ref(`rooms/${roomId}/answers/${myUserId}`).remove();
                 await db.ref(`rooms/${roomId}/candidates/${myUserId}`).remove();
                 
-                // Очищаем все слушатели
                 db.ref(`rooms/${roomId}/members`).off();
                 db.ref(`rooms/${roomId}/offers`).off();
                 db.ref(`rooms/${roomId}/answers`).off();
                 db.ref(`rooms/${roomId}/candidates`).off();
                 
-                // Закрываем все пиры
                 await closeAllPeers();
                 processingOffers.clear();
                 
@@ -1098,8 +1124,6 @@
             }
         }
 
-        // ------------------------------------------------------------
-        // Firebase статус
         db.ref('.info/connected').on('value', (snap) => {
             if (snap.val()) {
                 fbStatus.className = 'status-dot green';
@@ -1112,15 +1136,12 @@
             }
         });
 
-        // ------------------------------------------------------------
-        // Обработчики
         joinBtn.addEventListener('click', () => {
             joinRoom(roomInput.value.trim());
         });
 
         leaveBtn.addEventListener('click', leaveRoom);
 
-        // При закрытии страницы
         window.addEventListener('beforeunload', () => {
             if (currentRoom) {
                 db.ref(`rooms/${currentRoom}/members/${myUserId}`).remove();
@@ -1133,8 +1154,6 @@
             }
         });
 
-        // ------------------------------------------------------------
-        // Старт
         log(`ваш id: ${myUserId}`, 'info');
     </script>
 </body>
