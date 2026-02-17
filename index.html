@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>голосовой чат · 4 пользователя</title>
+    <title>голосовой чат · 4 пользователя · исправленная версия</title>
     <!-- Firebase SDK (compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
@@ -85,12 +85,6 @@
             border-bottom: 2px solid #587a9f;
             padding-bottom: 5px;
         }
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-top: 8px;
-        }
         .input-field {
             padding: 14px 16px;
             font-size: 16px;
@@ -98,10 +92,8 @@
             border-radius: 50px;
             background: white;
             outline: none;
-        }
-        .input-field:focus {
-            border-color: #ffb347;
-            background: #fffef7;
+            width: 100%;
+            margin-bottom: 12px;
         }
         .btn {
             background: #eef6ff;
@@ -115,16 +107,11 @@
             box-shadow: 3px 3px 0 #1b3f61;
             transition: 0.03s linear;
             width: 100%;
+            margin-bottom: 8px;
         }
         .btn:active {
             transform: translate(3px, 3px);
             box-shadow: none;
-        }
-        .btn:disabled {
-            opacity: 0.4;
-            transform: none;
-            box-shadow: 3px 3px 0 #1b3f61;
-            pointer-events: none;
         }
         .btn-join {
             background: #b9e0b9;
@@ -144,14 +131,6 @@
             margin: 16px 0;
             text-align: center;
         }
-        .room-url {
-            background: #fff;
-            padding: 12px;
-            border-radius: 50px;
-            border: 1px solid #2565a0;
-            font-family: monospace;
-            word-break: break-all;
-        }
         .log-container {
             background: #102331;
             color: #b4e0ff;
@@ -159,26 +138,22 @@
             font-size: 13px;
             padding: 18px;
             border-radius: 16px;
-            height: 260px;
+            height: 300px;
             overflow-y: auto;
             white-space: pre-wrap;
             border: 2px solid #4280b0;
-            margin-top: 20px;
+            margin: 20px 0;
         }
         .log-line {
             border-bottom: 1px solid #2f5577;
             padding: 4px 0;
-            color: #c5e2ff;
+            font-family: monospace;
         }
-        .log-line.error {
-            color: #ffaeae;
-        }
-        .log-line.warning {
-            color: #ffd966;
-        }
-        .log-line.success {
-            color: #a3d8a3;
-        }
+        .log-line.info { color: #c5e2ff; }
+        .log-line.success { color: #a3d8a3; }
+        .log-line.warning { color: #ffd966; }
+        .log-line.error { color: #ffaeae; }
+        
         .user-badge {
             display: inline-block;
             background: #316e9e;
@@ -200,93 +175,82 @@
             margin: 18px 0;
             min-height: 70px;
         }
-        .footer-note {
-            background: #adc5de;
-            padding: 8px 16px;
-            font-size: 12px;
-            border-top: 2px solid #537a9f;
-        }
-        .error-box {
-            background: #f8d7da;
-            border: 2px solid #721c24;
-            color: #721c24;
+        .debug-panel {
+            background: #1e3a5a;
+            color: white;
             padding: 12px;
-            border-radius: 40px;
+            border-radius: 16px;
             margin: 10px 0;
-            font-weight: bold;
+            font-size: 13px;
         }
-        .https-warning {
-            background: #fff3cd;
-            border: 2px solid #856404;
-            color: #856404;
-            padding: 8px 12px;
-            border-radius: 30px;
-            margin: 10px 0;
-            font-size: 14px;
+        .connection-status {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 6px;
         }
+        .status-green { background: #2ecc71; }
+        .status-yellow { background: #f1c40f; }
+        .status-red { background: #e74c3c; }
     </style>
 </head>
 <body>
 <div class="chat-container">
     <div class="header">
-        🎤 голосовой чат · макс. 4 участника · подробные логи
+        🎤 голосовой чат · mesh (до 4) · исправленная версия
     </div>
     <div class="main-panels">
-        <!-- левая панель: управление и комнаты -->
+        <!-- левая панель -->
         <div class="left-panel">
             <div class="info-card">
-                <div class="user-id-label">мой ID (постоянный)</div>
+                <div class="user-id-label">мой ID</div>
                 <div class="user-id-value" id="myUserIdDisplay">загрузка...</div>
             </div>
 
             <div class="section-title">комната</div>
-            <input type="text" id="roomIdInput" class="input-field" placeholder="id комнаты (например: loft)" value="lobby">
-            <div style="display: flex; gap: 8px; margin-top: 12px;">
-                <button class="btn btn-join" id="joinRoomBtn">➕ войти</button>
-                <button class="btn btn-leave" id="leaveRoomBtn">✖ покинуть</button>
-            </div>
+            <input type="text" id="roomIdInput" class="input-field" placeholder="id комнаты" value="testroom">
+            
+            <button class="btn btn-join" id="joinRoomBtn">➕ войти в комнату</button>
+            <button class="btn btn-leave" id="leaveRoomBtn">✖ покинуть комнату</button>
+            <button class="btn" id="testMicBtn">🎤 тест микрофона</button>
 
             <div class="room-panel">
-                <div style="font-weight:600;">участники (до 4)</div>
+                <div style="font-weight:600; margin-bottom:10px;">участники (<span id="memberCount">0</span>/4)</div>
                 <div id="membersContainer" class="member-list">
-                    <span class="status-badge">нет данных</span>
+                    <span class="status-badge">нет в комнате</span>
                 </div>
-                <div style="font-size:13px; margin-top:8px;">текущая комната: <span id="currentRoomSpan">—</span></div>
+                <div style="font-size:13px;">текущая: <span id="currentRoomSpan">—</span></div>
             </div>
 
-            <div id="micStatusPanel" style="font-size:14px; background: #b8d3f0; border-radius: 20px; padding: 10px; margin-top: 10px;">
-                <div>🎤 микрофон: <span id="micIndicator">⚫ запрос...</span></div>
-                <div id="httpsWarning" class="https-warning" style="display: none;">⚠️ Сайт должен открываться через HTTPS (или localhost) для доступа к микрофону</div>
+            <div class="debug-panel" id="statusPanel">
+                <div><span class="connection-status status-yellow" id="fbStatus"></span> Firebase: <span id="fbStatusText">подключение...</span></div>
+                <div><span class="connection-status status-yellow" id="micStatus"></span> микрофон: <span id="micStatusText">не запрошен</span></div>
+                <div><span class="connection-status status-yellow" id="peerStatus"></span> пиры: <span id="peerCount">0</span></div>
             </div>
         </div>
 
-        <!-- правая панель: логи, статус -->
+        <!-- правая панель с логами -->
         <div class="right-panel">
-            <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
-                <span><strong>статус:</strong> <span id="connectionIndicator">⚪ инициализация</span></span>
-                <span><strong>WebRTC:</strong> <span id="webrtcIndicator">⚫ проверка...</span></span>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <button class="btn" id="copyLogBtn" style="padding: 8px;">📋 копировать логи</button>
+                <button class="btn" id="clearLogBtn" style="padding: 8px;">🗑 очистить</button>
             </div>
-
-            <div style="margin-bottom: 10px; font-weight: 600;">📋 системные логи (ошибки, события)</div>
+            
             <div id="logPanel" class="log-container">
-                <div class="log-line">[sys] ожидание инициализации...</div>
+                <div class="log-line info">[system] инициализация...</div>
             </div>
-            <div style="margin-top: 10px; display: flex; gap: 10px;">
-                <button class="btn" id="copyLogBtn">📋 копировать логи</button>
-                <button class="btn" id="clearLogBtn">🗑 очистить логи</button>
-                <button class="btn" id="testMicBtn">🎤 тест микрофона</button>
-            </div>
-            <div class="footer-note">
-                голосовой чат на firebase + webrtc (mesh). для разговора нужно войти в одну комнату.
-                <br>⚠️ Если микрофон не работает — проверьте HTTPS и разрешения браузера.
+            
+            <div style="background: #adc5de; padding: 8px 12px; border-radius: 20px; font-size: 12px;">
+                🔧 если звука нет: проверьте что микрофон разрешён, и все участники в одной комнате
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    // ------------------------------------------------------------------ 
-    // Firebase конфигурация (из задания)
+    // ------------------------------------------------------------
+    // Firebase конфигурация
     const firebaseConfig = {
         apiKey: "AIzaSyDTx2Y9ctiWp26YeMmAHAxDZd_gVI_ZMdw",
         authDomain: "kcalls.firebaseapp.com",
@@ -300,39 +264,48 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // ------------------------------------------------------------------ 
-    // Глобальные переменные и утилиты
-    const myUserId = 'user_' + Math.random().toString(36).substring(2, 8); // короткий читаемый
+    // ------------------------------------------------------------
+    // Глобальные переменные
+    const myUserId = 'user_' + Math.random().toString(36).substring(2, 8);
     document.getElementById('myUserIdDisplay').innerText = myUserId;
 
     let localStream = null;
-    let peerConnections = {}; // userId -> RTCPeerConnection
-    let currentRoom = null;   // комната, в которой находимся
-    let roomMembers = [];      // список участников комнаты (включая себя)
-    let micAvailable = false;
-    let webrtcSupported = false;
+    let peerConnections = new Map(); // userId -> RTCPeerConnection
+    let currentRoom = null;
+    let roomMembers = new Set();
+    
+    // Firebase listeners
+    let membersListener = null;
+    let offersListener = null;
+    let answersListener = null;
+    let candidatesListener = null;
 
-    // элементы
+    // DOM элементы
     const logPanel = document.getElementById('logPanel');
-    const connectionIndicator = document.getElementById('connectionIndicator');
-    const micIndicator = document.getElementById('micIndicator');
-    const webrtcIndicator = document.getElementById('webrtcIndicator');
     const membersContainer = document.getElementById('membersContainer');
     const currentRoomSpan = document.getElementById('currentRoomSpan');
+    const roomIdInput = document.getElementById('roomIdInput');
     const joinBtn = document.getElementById('joinRoomBtn');
     const leaveBtn = document.getElementById('leaveRoomBtn');
-    const roomIdInput = document.getElementById('roomIdInput');
+    const testMicBtn = document.getElementById('testMicBtn');
     const copyLogBtn = document.getElementById('copyLogBtn');
     const clearLogBtn = document.getElementById('clearLogBtn');
-    const testMicBtn = document.getElementById('testMicBtn');
-    const httpsWarning = document.getElementById('httpsWarning');
+    const memberCount = document.getElementById('memberCount');
+    const peerCount = document.getElementById('peerCount');
+    
+    // Статус панель
+    const fbStatus = document.getElementById('fbStatus');
+    const fbStatusText = document.getElementById('fbStatusText');
+    const micStatus = document.getElementById('micStatus');
+    const micStatusText = document.getElementById('micStatusText');
+    const peerStatus = document.getElementById('peerStatus');
 
-    // ------------------------------------------------------------------ 
-    // Функция логирования (все в панель + console)
+    // ------------------------------------------------------------
+    // Логирование
     function addLog(message, type = 'info') {
         const time = new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const line = document.createElement('div');
-        line.className = 'log-line';
+        line.className = `log-line ${type}`;
         
         let prefix = '➡️';
         if (type === 'error') prefix = '❌';
@@ -340,179 +313,101 @@
         else if (type === 'success') prefix = '✅';
         
         line.innerHTML = `[${time}] ${prefix} ${message}`;
-        
-        if (type === 'error') line.classList.add('error');
-        else if (type === 'warning') line.classList.add('warning');
-        else if (type === 'success') line.classList.add('success');
-        
         logPanel.appendChild(line);
         logPanel.scrollTop = logPanel.scrollHeight;
         
         if (type === 'error') console.error(message);
-        else if (type === 'warning') console.warn(message);
         else console.log(message);
     }
 
-    // очистка логов
     clearLogBtn.addEventListener('click', () => {
-        logPanel.innerHTML = '<div class="log-line">[sys] логи очищены</div>';
-        addLog('логи очищены');
+        logPanel.innerHTML = '<div class="log-line info">[system] логи очищены</div>';
     });
 
-    // копирование логов
     copyLogBtn.addEventListener('click', () => {
         let logText = '';
         document.querySelectorAll('.log-line').forEach(div => {
             logText += div.innerText + '\n';
         });
         navigator.clipboard.writeText(logText).then(() => {
-            addLog('логи скопированы в буфер', 'success');
-        }).catch(() => addLog('не удалось скопировать', 'error'));
+            addLog('логи скопированы', 'success');
+        });
     });
 
-    // ------------------------------------------------------------------ 
-    // Проверка поддержки WebRTC и HTTPS
-    function checkWebRTCSupport() {
-        // Проверка поддержки getUserMedia
-        const isSecure = window.isSecureContext;
-        const gdmSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-        const rtcSupported = !!(window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection);
-        
-        webrtcSupported = gdmSupported && rtcSupported;
-        
-        if (!isSecure) {
-            httpsWarning.style.display = 'block';
-            addLog('⚠️ Сайт открыт не по HTTPS — микрофон может быть недоступен', 'warning');
-        }
-        
-        if (!gdmSupported) {
-            addLog('❌ navigator.mediaDevices.getUserMedia не поддерживается браузером', 'error');
-        }
-        
-        if (!rtcSupported) {
-            addLog('❌ RTCPeerConnection не поддерживается браузером', 'error');
-        }
-        
-        webrtcIndicator.innerHTML = webrtcSupported ? '🟢 поддерживается' : '🔴 не поддерживается';
-        
-        return webrtcSupported;
-    }
-
-    // ------------------------------------------------------------------ 
-    // Получение доступа к микрофону с правильной обработкой ошибок
+    // ------------------------------------------------------------
+    // Микрофон
     async function initMicrophone(force = false) {
         if (localStream && !force) {
-            addLog('микрофон уже доступен', 'success');
+            micStatus.className = 'connection-status status-green';
+            micStatusText.innerText = 'доступен';
             return localStream;
         }
         
-        // Проверяем поддержку
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            const errorMsg = 'navigator.mediaDevices.getUserMedia не поддерживается. Убедитесь, что сайт открыт по HTTPS.';
-            addLog(errorMsg, 'error');
-            micIndicator.innerHTML = '❌ не поддерживается';
-            throw new Error(errorMsg);
+            micStatus.className = 'connection-status status-red';
+            micStatusText.innerText = 'не поддерживается';
+            addLog('getUserMedia не поддерживается (нужен HTTPS)', 'error');
+            throw new Error('getUserMedia not supported');
         }
         
         try {
-            addLog('запрашиваем доступ к микрофону...');
-            micIndicator.innerHTML = '⏳ запрос...';
+            micStatus.className = 'connection-status status-yellow';
+            micStatusText.innerText = 'запрос...';
+            addLog('запрашиваем микрофон...');
             
-            // Запрашиваем разрешение
             localStream = await navigator.mediaDevices.getUserMedia({ 
                 audio: {
                     echoCancellation: true,
                     noiseSuppression: true,
                     autoGainControl: true
-                }, 
-                video: false 
+                }
             });
             
-            micAvailable = true;
-            micIndicator.innerHTML = '🎤 доступен (✅ разрешено)';
-            addLog('✅ микрофон получен, аудиотреки готовы', 'success');
+            micStatus.className = 'connection-status status-green';
+            micStatusText.innerText = 'доступен';
+            addLog('микрофон получен', 'success');
             
-            // Показываем треки для отладки
             localStream.getTracks().forEach(track => {
-                addLog(`  - трек: ${track.kind}, enabled: ${track.enabled}, muted: ${track.muted}`, 'info');
+                addLog(`  трек ${track.kind}: enabled=${track.enabled}`, 'info');
             });
             
             return localStream;
             
         } catch (err) {
-            micAvailable = false;
-            micIndicator.innerHTML = '❌ нет доступа';
+            micStatus.className = 'connection-status status-red';
+            micStatusText.innerText = 'ошибка';
             
-            // Подробная информация об ошибке
-            let errorMessage = 'ошибка микрофона: ';
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                errorMessage += 'доступ запрещён пользователем';
-            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                errorMessage += 'микрофон не найден';
-            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                errorMessage += 'микрофон занят другим приложением';
-            } else if (err.name === 'OverconstrainedError') {
-                errorMessage += 'параметры микрофона не поддерживаются';
-            } else if (err.name === 'TypeError') {
-                errorMessage += 'неверные параметры запроса';
-            } else {
-                errorMessage += err.message || 'неизвестная ошибка';
-            }
+            let errorMsg = 'ошибка микрофона: ';
+            if (err.name === 'NotAllowedError') errorMsg += 'доступ запрещён';
+            else if (err.name === 'NotFoundError') errorMsg += 'микрофон не найден';
+            else errorMsg += err.message;
             
-            addLog(errorMessage, 'error');
-            addLog(`детали: ${err.name} — ${err.message}`, 'error');
-            
-            // Для Safari добавим подсказку
-            if (/Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)) {
-                addLog('💡 Safari: проверьте разрешения в настройках (Preferences > Websites > Microphone)', 'warning');
-            }
-            
+            addLog(errorMsg, 'error');
             throw err;
         }
     }
 
-    // Тест микрофона
     testMicBtn.addEventListener('click', async () => {
         try {
             await initMicrophone(true);
-            addLog('✅ тест микрофона пройден успешно', 'success');
-            
-            // Показываем уровень звука для отладки (опционально)
-            if (localStream) {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const analyser = audioContext.createAnalyser();
-                const source = audioContext.createMediaStreamSource(localStream);
-                source.connect(analyser);
-                addLog('🎤 аудиоанализатор создан, можно говорить...', 'info');
-                
-                // Через 2 секунды отключаем
-                setTimeout(() => {
-                    source.disconnect();
-                    audioContext.close();
-                }, 2000);
-            }
+            addLog('тест микрофона успешен', 'success');
         } catch (err) {
-            addLog('❌ тест микрофона не пройден', 'error');
+            addLog('тест микрофона не пройден', 'error');
         }
     });
 
-    // ------------------------------------------------------------------ 
-    // Создание peer connection для конкретного пользователя
+    // ------------------------------------------------------------
+    // Создание peer connection
     async function createPeerConnection(targetUserId) {
-        if (peerConnections[targetUserId]) {
-            addLog(`пир ${targetUserId} уже существует, закрываем старый`, 'warning');
-            peerConnections[targetUserId].close();
-            delete peerConnections[targetUserId];
+        if (peerConnections.has(targetUserId)) {
+            addLog(`закрываем старое соединение с ${targetUserId}`, 'warning');
+            peerConnections.get(targetUserId).close();
+            peerConnections.delete(targetUserId);
         }
 
         if (!localStream) {
-            addLog('нет локального потока, пробуем получить микрофон', 'warning');
-            try {
-                await initMicrophone();
-            } catch (err) {
-                addLog('не удалось получить микрофон, создаём peer без аудио', 'error');
-                // Продолжаем без локального потока (может быть, другая сторона будет говорить)
-            }
+            addLog('нет микрофона, пробуем получить', 'warning');
+            try { await initMicrophone(); } catch (err) {}
         }
 
         const pc = new RTCPeerConnection({
@@ -523,137 +418,114 @@
             ]
         });
 
-        // добавляем локальные треки, если они есть
+        // Добавляем треки
         if (localStream) {
             localStream.getTracks().forEach(track => {
                 try {
                     pc.addTrack(track, localStream);
-                    addLog(`добавлен трек ${track.kind} для ${targetUserId}`, 'info');
-                } catch (e) {
-                    addLog(`ошибка добавления трека: ${e.message}`, 'error');
+                    addLog(`добавлен трек для ${targetUserId}`, 'info');
+                } catch (err) {
+                    addLog(`ошибка добавления трека: ${err.message}`, 'error');
                 }
             });
-        } else {
-            addLog(`предупреждение: локальный стрим отсутствует для ${targetUserId}`, 'warning');
-            // Добавляем пустой аудиотрек? Нет, просто без треков
         }
 
-        // отправка ICE кандидатов в firebase
+        // ICE candidates
         pc.onicecandidate = (e) => {
             if (e.candidate && currentRoom) {
                 const candidatePath = `rooms/${currentRoom}/candidates/${myUserId}/${targetUserId}`;
                 database.ref(candidatePath).push(e.candidate.toJSON())
-                    .then(() => addLog(`отправлен ICE кандидат для ${targetUserId}`, 'info'))
-                    .catch(err => addLog(`ошибка отправки кандидата: ${err.message}`, 'error'));
+                    .then(() => addLog(`ICE кандидат для ${targetUserId} отправлен`, 'info'))
+                    .catch(err => addLog(`ошибка отправки ICE: ${err.message}`, 'error'));
             }
         };
 
+        // Получение аудио
         pc.ontrack = (e) => {
             addLog(`✅ получен аудиотрек от ${targetUserId}`, 'success');
             
-            // создаём скрытый audio и подключаем
             let audioEl = document.getElementById(`audio_${targetUserId}`);
             if (!audioEl) {
                 audioEl = document.createElement('audio');
                 audioEl.id = `audio_${targetUserId}`;
                 audioEl.autoplay = true;
-                audioEl.controls = false;
                 audioEl.style.display = 'none';
                 document.body.appendChild(audioEl);
-                addLog(`создан аудиоэлемент для ${targetUserId}`, 'info');
             }
             
             try {
                 audioEl.srcObject = e.streams[0];
-                // Принудительно воспроизводим (для Safari)
                 audioEl.play().catch(err => addLog(`ошибка воспроизведения: ${err.message}`, 'warning'));
+                addLog(`аудио от ${targetUserId} подключено`, 'success');
             } catch (err) {
-                addLog(`ошибка подключения аудиопотока: ${err.message}`, 'error');
+                addLog(`ошибка подключения аудио: ${err.message}`, 'error');
             }
         };
 
+        // Мониторинг состояния
         pc.oniceconnectionstatechange = () => {
-            addLog(`[ice state with ${targetUserId}] ${pc.iceConnectionState}`, 'info');
-            if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
-                // пробуем переподключиться
-                addLog(`соединение с ${targetUserId} потеряно`, 'warning');
-            }
+            addLog(`[ICE ${targetUserId}] ${pc.iceConnectionState}`, 'info');
+            updatePeerCount();
         };
 
         pc.onconnectionstatechange = () => {
-            addLog(`[connection state with ${targetUserId}] ${pc.connectionState}`, 'info');
+            addLog(`[CONN ${targetUserId}] ${pc.connectionState}`, 'info');
+            updatePeerCount();
         };
 
-        peerConnections[targetUserId] = pc;
-        addLog(`peerConnection создан для ${targetUserId}`, 'success');
+        peerConnections.set(targetUserId, pc);
+        updatePeerCount();
         return pc;
     }
 
-    // ------------------------------------------------------------------ 
+    // ------------------------------------------------------------
     // Закрыть все соединения
     async function closeAllPeers() {
-        for (let uid of Object.keys(peerConnections)) {
+        for (let [userId, pc] of peerConnections) {
             try {
-                peerConnections[uid].close();
-                delete peerConnections[uid];
-                
-                // удаляем аудиоэлементы
-                const audioEl = document.getElementById(`audio_${uid}`);
+                pc.close();
+                const audioEl = document.getElementById(`audio_${userId}`);
                 if (audioEl) audioEl.remove();
             } catch (err) {
-                addLog(`ошибка при закрытии пира ${uid}: ${err.message}`, 'error');
+                addLog(`ошибка закрытия пира ${userId}: ${err.message}`, 'error');
             }
         }
-        peerConnections = {};
-        addLog('все пиры закрыты', 'info');
+        peerConnections.clear();
+        updatePeerCount();
+        addLog('все соединения закрыты', 'info');
     }
 
-    // ------------------------------------------------------------------ 
+    // ------------------------------------------------------------
     // Вход в комнату
     async function joinRoom(roomId) {
-        if (!roomId) { 
-            addLog('пустой id комнаты', 'error'); 
-            return; 
-        }
-        
-        if (currentRoom) {
-            addLog(`уже в комнате ${currentRoom}, сначала выйдите`, 'error');
-            return;
-        }
+        if (!roomId) { addLog('введите ID комнаты', 'error'); return; }
+        if (currentRoom) { addLog('сначала покиньте текущую комнату', 'error'); return; }
 
-        // Проверяем поддержку WebRTC
-        if (!webrtcSupported) {
-            addLog('WebRTC не поддерживается браузером — голосовая связь невозможна', 'error');
-        }
-
-        // Пробуем получить микрофон, но не останавливаемся при ошибке
-        try {
-            await initMicrophone();
-        } catch (err) {
-            addLog('продолжаем без микрофона (вы сможете слышать других)', 'warning');
-        }
+        await initMicrophone().catch(() => {});
 
         currentRoom = roomId;
         currentRoomSpan.innerText = roomId;
-        addLog(`попытка входа в комнату: ${roomId}`, 'info');
+        addLog(`вход в комнату: ${roomId}`, 'info');
 
-        // ссылка на участников комнаты
+        // Очищаем старые слушатели если были
+        if (membersListener) membersListener.off();
+
+        // Добавляем себя
         const membersRef = database.ref(`rooms/${roomId}/members`);
-        
-        // атомарно добавляем себя с timestamp
-        await membersRef.child(myUserId).set({ 
+        await membersRef.child(myUserId).set({
             joined: Date.now(),
             userAgent: navigator.userAgent.substring(0, 50)
         });
 
-        // слушаем список участников
-        membersRef.on('value', (snap) => {
+        // Слушаем изменения в списке участников
+        membersListener = membersRef.on('value', (snap) => {
             const members = snap.val() || {};
             const userIds = Object.keys(members);
-            roomMembers = userIds;
-            addLog(`обновление участников: ${userIds.join(', ') || 'никого'}`, 'info');
-
-            // отображаем
+            
+            roomMembers = new Set(userIds);
+            memberCount.innerText = userIds.length;
+            
+            // Отображаем участников
             membersContainer.innerHTML = '';
             userIds.forEach(uid => {
                 const span = document.createElement('span');
@@ -662,211 +534,234 @@
                 membersContainer.appendChild(span);
             });
 
-            // проверка лимита (до 4)
-            if (userIds.length > 4) {
-                addLog('⚠️ превышено 4 участника, но всё ещё работаем mesh', 'warning');
-            }
+            addLog(`участники: ${userIds.join(', ') || 'никого'}`, 'info');
 
-            // запускаем пиринг для новых участников (исключая себя)
+            // Создаём соединения для новых участников
             userIds.forEach(async (uid) => {
                 if (uid === myUserId) return;
                 
-                // если ещё нет соединения — инициируем
-                if (!peerConnections[uid]) {
+                if (!peerConnections.has(uid)) {
                     addLog(`новый участник ${uid}, создаём offer`, 'info');
                     
                     try {
                         const pc = await createPeerConnection(uid);
                         
-                        // создаём offer и отправляем
+                        // Создаём offer
                         const offer = await pc.createOffer({
                             offerToReceiveAudio: true,
                             voiceActivityDetection: true
                         });
                         await pc.setLocalDescription(offer);
                         
-                        // сохраняем offer в комнате
-                        await database.ref(`rooms/${roomId}/offers/${myUserId}/${uid}`).set(offer);
+                        // Отправляем offer
+                        await database.ref(`rooms/${roomId}/offers/${myUserId}/${uid}`).set(offer.toJSON());
                         addLog(`offer отправлен для ${uid}`, 'success');
+                        
                     } catch (err) {
                         addLog(`ошибка создания offer для ${uid}: ${err.message}`, 'error');
                     }
                 }
             });
 
-            // чистим пиры, кто вышел
-            Object.keys(peerConnections).forEach(uid => {
+            // Удаляем пиры вышедших участников
+            for (let uid of peerConnections.keys()) {
                 if (!userIds.includes(uid)) {
-                    addLog(`участник ${uid} покинул, закрываем пир`, 'info');
+                    addLog(`участник ${uid} покинул комнату`, 'info');
                     try {
-                        peerConnections[uid].close();
-                        delete peerConnections[uid];
+                        peerConnections.get(uid).close();
+                        peerConnections.delete(uid);
                         const audioEl = document.getElementById(`audio_${uid}`);
                         if (audioEl) audioEl.remove();
                     } catch (err) {
-                        addLog(`ошибка при закрытии пира ${uid}: ${err.message}`, 'error');
+                        addLog(`ошибка удаления пира ${uid}: ${err.message}`, 'error');
                     }
                 }
-            });
+            }
+            updatePeerCount();
         });
 
-        // слушаем offers (ответы и answer)
+        // Слушаем offers
         const offersRef = database.ref(`rooms/${roomId}/offers`);
-        offersRef.on('child_added', (snap) => {
-            const fromUser = snap.key; // кто создал offer (remote)
+        offersListener = offersRef.on('child_added', (snap) => {
+            const fromUser = snap.key;
             if (fromUser === myUserId) return;
             
-            const offersForMe = snap.val();
-            if (offersForMe && offersForMe[myUserId]) {
-                // это offer, адресованный мне
-                const offer = offersForMe[myUserId];
-                addLog(`📞 получен offer от ${fromUser} для меня`, 'info');
+            const offers = snap.val();
+            if (offers && offers[myUserId]) {
+                const offerData = offers[myUserId];
+                addLog(`📞 получен offer от ${fromUser}`, 'info');
                 
                 (async () => {
                     try {
-                        if (!peerConnections[fromUser]) {
+                        // Создаём peer если нет
+                        if (!peerConnections.has(fromUser)) {
                             await createPeerConnection(fromUser);
                         }
-                        const pc = peerConnections[fromUser];
                         
-                        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                        const pc = peerConnections.get(fromUser);
+                        
+                        // Устанавливаем remote description
+                        await pc.setRemoteDescription(new RTCSessionDescription(offerData));
                         addLog(`remote description установлен для ${fromUser}`, 'success');
                         
+                        // Создаём answer
                         const answer = await pc.createAnswer();
                         await pc.setLocalDescription(answer);
                         
-                        // отправляем answer обратно
-                        await database.ref(`rooms/${roomId}/answers/${myUserId}/${fromUser}`).set(answer);
+                        // Отправляем answer
+                        await database.ref(`rooms/${roomId}/answers/${myUserId}/${fromUser}`).set(answer.toJSON());
                         addLog(`answer отправлен для ${fromUser}`, 'success');
                         
                     } catch (err) {
-                        addLog(`ошибка обработки offer от ${fromUser}: ${err.message}`, 'error');
-                        addLog(`стек: ${err.stack}`, 'error');
+                        addLog(`ошибка обработки offer: ${err.message}`, 'error');
                     }
                 })();
             }
         });
 
-        // слушаем answers
+        // Слушаем answers
         const answersRef = database.ref(`rooms/${roomId}/answers`);
-        answersRef.on('child_added', (snap) => {
-            const fromUser = snap.key; // кто даёт answer (remote)
+        answersListener = answersRef.on('child_added', (snap) => {
+            const fromUser = snap.key;
             if (fromUser === myUserId) return;
             
-            const answersForMe = snap.val();
-            if (answersForMe && answersForMe[myUserId]) {
-                const answer = answersForMe[myUserId];
+            const answers = snap.val();
+            if (answers && answers[myUserId]) {
+                const answerData = answers[myUserId];
                 addLog(`📞 получен answer от ${fromUser}`, 'info');
                 
                 (async () => {
                     try {
-                        const pc = peerConnections[fromUser];
+                        const pc = peerConnections.get(fromUser);
                         if (pc) {
-                            await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                            await pc.setRemoteDescription(new RTCSessionDescription(answerData));
                             addLog(`remote answer установлен для ${fromUser}`, 'success');
                         } else {
-                            addLog(`нет peer для ${fromUser} при answer`, 'error');
+                            addLog(`нет peer для ${fromUser} при получении answer`, 'error');
                         }
                     } catch (err) {
-                        addLog(`ошибка answer от ${fromUser}: ${err.message}`, 'error');
+                        addLog(`ошибка установки answer: ${err.message}`, 'error');
                     }
                 })();
             }
         });
 
-        // слушаем кандидатов
+        // Слушаем candidates
         const candidatesRef = database.ref(`rooms/${roomId}/candidates`);
-        candidatesRef.on('child_added', (snap) => {
-            const fromUser = snap.key; // кто отправляет кандидата
+        candidatesListener = candidatesRef.on('child_added', (snap) => {
+            const fromUser = snap.key;
             if (fromUser === myUserId) return;
             
-            const candidatesToMe = snap.val();
-            if (candidatesToMe && candidatesToMe[myUserId]) {
-                // candidatesToMe[myUserId] может быть объектом с pushId
-                Object.values(candidatesToMe[myUserId]).forEach(candidateData => {
-                    if (peerConnections[fromUser]) {
-                        peerConnections[fromUser].addIceCandidate(new RTCIceCandidate(candidateData))
+            const candidates = snap.val();
+            if (candidates && candidates[myUserId]) {
+                // candidates[myUserId] может быть объектом с ключами
+                Object.values(candidates[myUserId]).forEach(candidateData => {
+                    const pc = peerConnections.get(fromUser);
+                    if (pc) {
+                        pc.addIceCandidate(new RTCIceCandidate(candidateData))
                             .then(() => addLog(`ICE кандидат добавлен от ${fromUser}`, 'info'))
-                            .catch(e => addLog(`ошибка добавления ICE: ${e.message}`, 'error'));
+                            .catch(err => addLog(`ошибка добавления ICE: ${err.message}`, 'error'));
                     }
                 });
             }
         });
 
-        connectionIndicator.innerHTML = '🟢 в комнате';
-        addLog(`✅ успешно вошли в комнату ${roomId}`, 'success');
+        addLog('✅ успешно вошли в комнату', 'success');
     }
 
-    // покинуть комнату
+    // ------------------------------------------------------------
+    // Выход из комнаты
     async function leaveRoom() {
         if (!currentRoom) {
-            addLog('вы не в комнате', 'error');
+            addLog('вы не в комнате', 'warning');
             return;
         }
-        
+
         const roomId = currentRoom;
         
         try {
-            // удаляем себя из members
+            // Удаляем себя из members
             await database.ref(`rooms/${roomId}/members/${myUserId}`).remove();
             
-            // очистим offers/answers/candidates
+            // Удаляем свои сигналы
             await database.ref(`rooms/${roomId}/offers/${myUserId}`).remove();
             await database.ref(`rooms/${roomId}/answers/${myUserId}`).remove();
             await database.ref(`rooms/${roomId}/candidates/${myUserId}`).remove();
-
-            // закрываем пиры
+            
+            // Отписываемся от слушателей
+            if (membersListener) database.ref(`rooms/${roomId}/members`).off('value', membersListener);
+            if (offersListener) database.ref(`rooms/${roomId}/offers`).off('child_added', offersListener);
+            if (answersListener) database.ref(`rooms/${roomId}/answers`).off('child_added', answersListener);
+            if (candidatesListener) database.ref(`rooms/${roomId}/candidates`).off('child_added', candidatesListener);
+            
+            // Закрываем все пиры
             await closeAllPeers();
             
             currentRoom = null;
             currentRoomSpan.innerText = '—';
             membersContainer.innerHTML = '<span class="status-badge">нет в комнате</span>';
-            connectionIndicator.innerHTML = '⚪ вне комнаты';
+            memberCount.innerText = '0';
             
-            addLog(`👋 вышли из комнаты ${roomId}`, 'info');
+            addLog('👋 вышли из комнаты', 'success');
             
         } catch (err) {
             addLog(`ошибка при выходе: ${err.message}`, 'error');
         }
     }
 
-    // обработчики кнопок
-    joinBtn.addEventListener('click', async () => {
+    // ------------------------------------------------------------
+    // Обновление счётчика пиров
+    function updatePeerCount() {
+        let connected = 0;
+        for (let pc of peerConnections.values()) {
+            if (pc.connectionState === 'connected' || pc.iceConnectionState === 'connected') {
+                connected++;
+            }
+        }
+        peerCount.innerText = `${peerConnections.size} (${connected} connected)`;
+        
+        if (connected > 0) {
+            peerStatus.className = 'connection-status status-green';
+        } else if (peerConnections.size > 0) {
+            peerStatus.className = 'connection-status status-yellow';
+        } else {
+            peerStatus.className = 'connection-status status-yellow';
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Firebase статус
+    database.ref('.info/connected').on('value', (snap) => {
+        if (snap.val()) {
+            fbStatus.className = 'connection-status status-green';
+            fbStatusText.innerText = 'подключен';
+            addLog('Firebase подключен', 'success');
+        } else {
+            fbStatus.className = 'connection-status status-red';
+            fbStatusText.innerText = 'отключен';
+            addLog('Firebase отключен', 'error');
+        }
+    });
+
+    // ------------------------------------------------------------
+    // Обработчики кнопок
+    joinBtn.addEventListener('click', () => {
         const room = roomIdInput.value.trim();
-        if (!room) { 
-            addLog('введите id комнаты', 'error'); 
-            return; 
-        }
-        if (currentRoom) {
-            addLog('сначала покиньте текущую комнату', 'error');
-            return;
-        }
-        await joinRoom(room);
+        joinRoom(room);
     });
 
-    leaveBtn.addEventListener('click', async () => {
-        await leaveRoom();
-    });
+    leaveBtn.addEventListener('click', leaveRoom);
 
-    // при загрузке, почистить возможные остатки (на всякий случай)
+    // Очистка при закрытии
     window.addEventListener('beforeunload', () => {
         if (currentRoom) {
             database.ref(`rooms/${currentRoom}/members/${myUserId}`).remove();
         }
     });
 
-    // Инициализация: проверка поддержки
-    addLog(`ваш ID: ${myUserId} — используйте для приглашения`, 'info');
-    checkWebRTCSupport();
-    
-    // Проверяем, что Firebase работает
-    database.ref('.info/connected').on('value', (snap) => {
-        if (snap.val() === true) {
-            addLog('✅ Firebase подключен', 'success');
-        } else {
-            addLog('⚠️ Firebase не подключен', 'warning');
-        }
-    });
+    // ------------------------------------------------------------
+    // Старт
+    addLog(`ваш ID: ${myUserId}`, 'info');
 </script>
 </body>
 </html>
