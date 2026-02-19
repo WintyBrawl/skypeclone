@@ -1,13 +1,16 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Skype · голосовой чат</title>
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <!-- SimplePeer -->
+    <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
     <style>
+        /* Metro/Modern UI стиль как в Windows 8.1 */
         * {
             margin: 0;
             padding: 0;
@@ -26,6 +29,7 @@
             position: relative;
         }
 
+        /* Кнопка показа логов */
         .log-toggle-btn {
             position: fixed;
             left: 20px;
@@ -52,6 +56,7 @@
             border-color: #008fc0;
         }
 
+        /* Панель логов */
         .log-panel {
             position: fixed;
             left: 20px;
@@ -152,6 +157,7 @@
             margin: 0 auto;
         }
 
+        /* Синяя полоска Skype */
         .metro-header {
             background: #00aff0;
             min-height: 60px;
@@ -307,6 +313,7 @@
             flex-wrap: wrap;
             margin-top: 10px;
             gap: 6px;
+            min-height: 50px;
         }
 
         .member-badge-metro {
@@ -358,44 +365,6 @@
             padding: 20px;
         }
 
-        .audio-test-btn {
-            background: #3a3a3a;
-            border: 2px solid #555555;
-            color: white;
-            padding: 10px;
-            margin-top: 10px;
-            cursor: pointer;
-            width: 100%;
-            text-align: center;
-            font-weight: 300;
-        }
-
-        .audio-test-btn:hover {
-            background: #4a4a4a;
-        }
-
-        .debug-info {
-            background: #1b1f24;
-            color: #00aff0;
-            padding: 8px;
-            margin-top: 10px;
-            font-size: 12px;
-            font-family: monospace;
-            border: 2px solid #333333;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-
-        .connection-help {
-            background: #fff3cd;
-            border: 2px solid #856404;
-            color: #856404;
-            padding: 10px;
-            margin-top: 10px;
-            font-size: 12px;
-            font-weight: 300;
-        }
-
         .audio-players {
             display: flex;
             flex-direction: column;
@@ -420,6 +389,7 @@
         .audio-player-controls {
             display: flex;
             gap: 8px;
+            align-items: center;
         }
 
         .audio-play-btn {
@@ -470,6 +440,26 @@
         .connection-status-text.connected { color: #00b050; }
         .connection-status-text.checking { color: #f1c40f; }
         .connection-status-text.failed { color: #e81123; }
+
+        .speaking-indicator {
+            width: 10px;
+            height: 10px;
+            background: #00b050;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 8px;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.3; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+            100% { opacity: 0.3; transform: scale(0.8); }
+        }
+
+        .hidden {
+            display: none;
+        }
 
         @media (max-width: 768px) {
             body {
@@ -572,19 +562,8 @@
                     <button class="metro-btn metro-btn-red" id="leaveBtn">покинуть</button>
                     <button class="metro-btn" id="testMicBtn">тест микрофона</button>
                     
-                    <button class="audio-test-btn" id="forceAudioBtn">🔊 принудительно включить звук</button>
-                    <button class="audio-test-btn" id="forceReconnectBtn">🔄 принудительное переподключение</button>
-                    
-                    <div class="connection-help" id="connectionHelp">
-                        ⚡ если соединение не устанавливается, нажмите кнопку переподключения выше
-                    </div>
-                    
                     <div class="mic-warning" id="micWarning">
                         ⚠️ микрофон не доступен, но вы можете слышать других
-                    </div>
-                    
-                    <div class="debug-info" id="debugInfo">
-                        статус: ожидание...
                     </div>
                 </div>
 
@@ -624,6 +603,7 @@
     </div>
 
     <script>
+        // ==================== FIREBASE ====================
         const firebaseConfig = {
             apiKey: "AIzaSyDTx2Y9ctiWp26YeMmAHAxDZd_gVI_ZMdw",
             authDomain: "kcalls.firebaseapp.com",
@@ -636,20 +616,25 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
+        // ==================== ПЕРЕМЕННЫЕ ====================
         const myUserId = 'user_' + Math.random().toString(36).substring(2, 8);
         document.getElementById('myUserId').innerText = myUserId;
 
         let localStream = null;
-        let peers = new Map();
+        let peers = {};
         let currentRoom = null;
-        let processingOffers = new Set();
-        let isInRoom = false;
-        let audioPlayers = new Map();
-        let reconnectTimer = null;
-        let connectionCheckInterval = null;
+        let roomRef = null;
+        let callsRef = null;
+        let allUsers = {};
+        let audioElements = {};
+        let reconnectTimeouts = {};
+        let pendingSignals = {};
+        let analyserIntervals = {};
+        let audioUnlocked = false;
         let micAvailable = false;
-        let reconnectAttempts = new Map();
+        let isInRoom = false;
 
+        // DOM элементы
         const logPanel = document.getElementById('logPanel');
         const logContent = document.getElementById('logContent');
         const logToggleBtn = document.getElementById('logToggleBtn');
@@ -664,9 +649,6 @@
         const clearLogsBtn = document.getElementById('clearLogsBtn');
         const memberCount = document.getElementById('memberCount');
         const peerCount = document.getElementById('peerCount');
-        const forceAudioBtn = document.getElementById('forceAudioBtn');
-        const forceReconnectBtn = document.getElementById('forceReconnectBtn');
-        const debugInfo = document.getElementById('debugInfo');
         const audioPlayersContainer = document.getElementById('audioPlayersContainer');
         const noAudioMsg = document.getElementById('noAudioMsg');
         const micWarning = document.getElementById('micWarning');
@@ -676,160 +658,7 @@
         const micStatus = document.getElementById('micStatus');
         const peerStatus = document.getElementById('peerStatus');
 
-        // ------------------------------------------------------------
-        // Упрощенная конфигурация ICE серверов с проверенными TURN серверами
-        const iceServers = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' },
-                // Только проверенные TURN серверы
-                {
-                    urls: [
-                        'turn:openrelay.metered.ca:80',
-                        'turn:openrelay.metered.ca:443'
-                    ],
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                }
-            ],
-            iceTransportPolicy: 'all',
-            iceCandidatePoolSize: 10
-        };
-
-        // ------------------------------------------------------------
-        window.playAudio = async function(userId) {
-            log(`ручное включение звука для ${userId}`, 'info');
-            
-            const data = audioPlayers.get(userId);
-            if (data && data.element) {
-                try {
-                    await data.element.play();
-                    log(`звук включен для ${userId}`, 'success');
-                } catch (err) {
-                    log(`ошибка: ${err.message}`, 'error');
-                }
-            }
-        };
-
-        // ------------------------------------------------------------
-        function updateAudioPlayers() {
-            if (audioPlayers.size === 0) {
-                audioPlayersContainer.innerHTML = '';
-                noAudioMsg.style.display = 'block';
-                return;
-            }
-            
-            noAudioMsg.style.display = 'none';
-            
-            let html = '';
-            for (let [userId, data] of audioPlayers) {
-                const connectionState = peers.has(userId) ? peers.get(userId).iceConnectionState : 'no peer';
-                const stateClass = connectionState === 'connected' || connectionState === 'completed' ? 'connected' : 
-                                  connectionState === 'checking' ? 'checking' : 'failed';
-                
-                html += `
-                    <div class="audio-player-item" id="player_${userId}">
-                        <div class="audio-player-header">
-                            <span>${userId}</span>
-                            <div class="audio-player-controls">
-                                <button class="audio-play-btn" onclick="playAudio('${userId}')">▶ включить</button>
-                                <span class="connection-status-text ${stateClass}">${connectionState}</span>
-                            </div>
-                        </div>
-                        <div class="audio-volume" id="volume_${userId}">
-                            <div class="audio-volume-fill" id="volumeFill_${userId}"></div>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            audioPlayersContainer.innerHTML = html;
-        }
-
-        // ------------------------------------------------------------
-        function updateDebugInfo() {
-            let info = `пиры: ${peers.size}\n`;
-            info += `аудиоплееры: ${audioPlayers.size}\n`;
-            info += `состояние: ${isInRoom ? 'в комнате' : 'вне комнаты'}\n`;
-            info += `микрофон: ${micAvailable ? 'доступен' : 'не доступен'}\n\n`;
-            
-            peers.forEach((pc, id) => {
-                info += `${id}: ice=${pc.iceConnectionState}, conn=${pc.connectionState}\n`;
-            });
-            
-            debugInfo.innerText = info;
-        }
-
-        // ------------------------------------------------------------
-        async function forcePlayAllAudio() {
-            log('принудительное включение звука...', 'info');
-            
-            if (audioPlayers.size === 0) {
-                log('нет аудиоплееров', 'warning');
-                return;
-            }
-            
-            let played = 0;
-            for (let [userId, data] of audioPlayers) {
-                try {
-                    if (data.element.paused) {
-                        await data.element.play();
-                        log(`звук включен для ${userId}`, 'success');
-                        played++;
-                    }
-                } catch (err) {
-                    log(`ошибка для ${userId}: ${err.message}`, 'error');
-                }
-            }
-            
-            log(`всего включено: ${played} аудио`, 'info');
-            updateDebugInfo();
-        }
-
-        // ------------------------------------------------------------
-        async function forceReconnect() {
-            log('принудительное переподключение...', 'info');
-            
-            if (!currentRoom || !isInRoom) {
-                log('вы не в комнате', 'warning');
-                return;
-            }
-            
-            const roomId = currentRoom;
-            
-            // Закрываем все пиры
-            await closeAllPeers();
-            
-            // Очищаем свои сигналы в Firebase
-            await db.ref(`rooms/${roomId}/offers/${myUserId}`).remove();
-            await db.ref(`rooms/${roomId}/answers/${myUserId}`).remove();
-            await db.ref(`rooms/${roomId}/candidates/${myUserId}`).remove();
-            
-            // Обновляем свой статус
-            await db.ref(`rooms/${roomId}/members/${myUserId}`).set({
-                joined: Date.now()
-            });
-            
-            log('переподключение инициировано', 'success');
-        }
-
-        forceAudioBtn.addEventListener('click', forcePlayAllAudio);
-        forceReconnectBtn.addEventListener('click', forceReconnect);
-
-        // ------------------------------------------------------------
-        logToggleBtn.addEventListener('click', () => {
-            logPanel.classList.toggle('visible');
-            logToggleBtn.classList.toggle('active');
-        });
-
-        logCloseBtn.addEventListener('click', () => {
-            logPanel.classList.remove('visible');
-            logToggleBtn.classList.remove('active');
-        });
-
+        // ==================== ЛОГИРОВАНИЕ ====================
         function log(message, type = 'info') {
             const time = new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             const line = document.createElement('div');
@@ -865,7 +694,38 @@
             });
         });
 
-        // ------------------------------------------------------------
+        logToggleBtn.addEventListener('click', () => {
+            logPanel.classList.toggle('visible');
+            logToggleBtn.classList.toggle('active');
+        });
+
+        logCloseBtn.addEventListener('click', () => {
+            logPanel.classList.remove('visible');
+            logToggleBtn.classList.remove('active');
+        });
+
+        // ==================== АУДИО ====================
+        function unlockAudio() {
+            if (audioUnlocked) return;
+            
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            audioContext.resume().then(() => {
+                log('🔊 аудио разблокировано', 'success');
+                audioUnlocked = true;
+                
+                Object.values(audioElements).forEach(audio => {
+                    if (audio.srcObject) {
+                        audio.play().catch(e => log(`ошибка воспроизведения: ${e.message}`, 'error'));
+                    }
+                });
+            });
+        }
+
+        document.addEventListener('click', function once() {
+            unlockAudio();
+            document.removeEventListener('click', once);
+        }, { once: true });
+
         async function initMic(force = false) {
             if (localStream && !force) {
                 micAvailable = true;
@@ -924,232 +784,293 @@
             const stream = await initMic(true);
             if (stream) {
                 log('тест микрофона успешен', 'success');
+                
+                // Показываем уровень звука
+                const audioContext = new AudioContext();
+                const analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                
+                analyser.fftSize = 256;
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                
+                const interval = setInterval(() => {
+                    analyser.getByteFrequencyData(dataArray);
+                    const avg = dataArray.reduce((a, b) => a + b) / dataArray.length;
+                    if (avg > 10) {
+                        log(`уровень звука: ${Math.round(avg)}`, 'info');
+                    }
+                }, 200);
+                
+                setTimeout(() => {
+                    clearInterval(interval);
+                    stream.getTracks().forEach(t => t.stop());
+                }, 3000);
+                
             } else {
                 log('микрофон не доступен', 'warning');
             }
         });
 
-        // ------------------------------------------------------------
-        async function createPeer(targetId) {
-            if (peers.has(targetId)) {
-                log(`использую существующий пир ${targetId}`, 'info');
-                return peers.get(targetId);
+        // ==================== ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ====================
+        function updateAudioPlayers() {
+            if (Object.keys(audioElements).length === 0) {
+                audioPlayersContainer.innerHTML = '';
+                noAudioMsg.style.display = 'block';
+                return;
             }
-
-            log(`создание нового пира для ${targetId}`, 'info');
             
-            const pc = new RTCPeerConnection(iceServers);
-
-            // Добавляем аудиотреки если микрофон доступен
-            if (localStream) {
-                localStream.getTracks().forEach(track => {
-                    try {
-                        pc.addTrack(track, localStream);
-                        log(`трек добавлен для ${targetId}`, 'info');
-                    } catch (err) {
-                        log(`ошибка добавления трека: ${err.message}`, 'error');
-                    }
-                });
-            } else {
-                log(`создаю пир без микрофона для ${targetId} (только прием)`, 'info');
-                try {
-                    pc.addTransceiver('audio', { direction: 'recvonly' });
-                } catch (err) {
-                    log(`ошибка добавления трансивера: ${err.message}`, 'error');
-                }
+            noAudioMsg.style.display = 'none';
+            
+            let html = '';
+            for (let [userId, audio] of Object.entries(audioElements)) {
+                const userName = allUsers[userId]?.name || userId;
+                const hasAudio = audio.srcObject;
+                const isSpeaking = analyserIntervals[userId] ? 'speaking-indicator' : '';
+                
+                html += `
+                    <div class="audio-player-item" id="player_${userId}">
+                        <div class="audio-player-header">
+                            <span>${userName} <span class="${isSpeaking}"></span></span>
+                            <div class="audio-player-controls">
+                                <button class="audio-play-btn" onclick="playAudio('${userId}')">▶ включить</button>
+                            </div>
+                        </div>
+                        <div class="audio-volume" id="volume_${userId}">
+                            <div class="audio-volume-fill" id="volumeFill_${userId}"></div>
+                        </div>
+                    </div>
+                `;
             }
-
-            pc.onicecandidate = (e) => {
-                if (e.candidate && currentRoom) {
-                    const path = `rooms/${currentRoom}/candidates/${myUserId}/${targetId}`;
-                    db.ref(path).push(e.candidate.toJSON())
-                        .catch(err => log(`ошибка ICE: ${err.message}`, 'error'));
-                }
-            };
-
-            pc.ontrack = (e) => {
-                log(`получен аудиотрек от ${targetId}`, 'success');
-                
-                if (audioPlayers.has(targetId)) {
-                    try {
-                        audioPlayers.get(targetId).element.remove();
-                    } catch (err) {}
-                }
-                
-                const audio = new Audio();
-                audio.controls = false;
-                audio.autoplay = true;
-                audio.style.display = 'none';
-                audio.srcObject = e.streams[0];
-                
-                document.body.appendChild(audio);
-                
-                audioPlayers.set(targetId, {
-                    element: audio,
-                    stream: e.streams[0]
-                });
-                
-                audio.play()
-                    .then(() => log(`аудио от ${targetId} воспроизводится`, 'success'))
-                    .catch(err => log(`ошибка автовоспроизведения: ${err.message}`, 'warning'));
-                
-                updateAudioPlayers();
-            };
-
-            pc.oniceconnectionstatechange = () => {
-                log(`ice ${targetId}: ${pc.iceConnectionState}`, 'info');
-                
-                if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-                    log(`✅ соединение с ${targetId} установлено`, 'success');
-                    reconnectAttempts.delete(targetId);
-                    setTimeout(forcePlayAllAudio, 500);
-                }
-                
-                if (pc.iceConnectionState === 'failed') {
-                    log(`соединение с ${targetId} не удалось`, 'error');
-                    
-                    let attempts = reconnectAttempts.get(targetId) || 0;
-                    if (attempts < 3) {
-                        reconnectAttempts.set(targetId, attempts + 1);
-                        
-                        if (reconnectTimer) clearTimeout(reconnectTimer);
-                        reconnectTimer = setTimeout(() => {
-                            if (isInRoom && currentRoom && peers.has(targetId)) {
-                                log(`переподключение к ${targetId} (попытка ${attempts + 1}/3)...`, 'info');
-                                peers.delete(targetId);
-                                if (shouldCreateOffer(targetId)) {
-                                    createOffer(targetId);
-                                }
-                            }
-                        }, 2000);
-                    }
-                }
-                
-                updatePeerStats();
-                updateDebugInfo();
-                updateAudioPlayers();
-            };
-
-            pc.onconnectionstatechange = () => {
-                log(`conn ${targetId}: ${pc.connectionState}`, 'info');
-                updatePeerStats();
-                updateDebugInfo();
-            };
-
-            peers.set(targetId, pc);
-            updatePeerStats();
-            updateDebugInfo();
-            return pc;
+            
+            audioPlayersContainer.innerHTML = html;
         }
 
-        // ------------------------------------------------------------
-        async function createOffer(targetId) {
-            try {
-                const pc = await createPeer(targetId);
-                
-                const offer = await pc.createOffer({
-                    offerToReceiveAudio: true
-                });
-                await pc.setLocalDescription(offer);
-                
-                await db.ref(`rooms/${currentRoom}/offers/${myUserId}/${targetId}`).set({
-                    type: offer.type,
-                    sdp: offer.sdp
-                });
-                log(`offer отправлен для ${targetId}`, 'success');
-                
-            } catch (err) {
-                log(`ошибка создания offer: ${err.message}`, 'error');
+        function playAudio(userId) {
+            const audio = audioElements[userId];
+            if (audio && audio.srcObject) {
+                audio.play().catch(e => log(`ошибка: ${e.message}`, 'error'));
             }
         }
 
-        // ------------------------------------------------------------
-        async function closeAllPeers() {
-            for (let [id, pc] of peers) {
-                try {
-                    pc.close();
-                } catch (err) {}
-            }
+        function updateMembersList() {
+            const userIds = Object.keys(allUsers);
+            memberCount.innerText = userIds.length;
             
-            for (let [id, data] of audioPlayers) {
-                try {
-                    data.element.pause();
-                    data.element.remove();
-                } catch (err) {}
-            }
-            
-            peers.clear();
-            audioPlayers.clear();
-            reconnectAttempts.clear();
-            if (reconnectTimer) clearTimeout(reconnectTimer);
-            
-            updatePeerStats();
-            updateDebugInfo();
-            updateAudioPlayers();
-            log('все пиры закрыты', 'info');
+            membersList.innerHTML = '';
+            userIds.forEach(uid => {
+                const span = document.createElement('span');
+                span.className = 'member-badge-metro';
+                span.innerText = (allUsers[uid]?.name || uid) + (uid === myUserId ? ' (я)' : '');
+                membersList.appendChild(span);
+            });
         }
 
-        // ------------------------------------------------------------
-        function shouldCreateOffer(remoteId) {
-            return myUserId < remoteId;
-        }
-
-        // ------------------------------------------------------------
         function updatePeerStats() {
             let connected = 0;
-            let checking = 0;
-            let failed = 0;
+            let total = Object.keys(peers).length;
             
-            for (let pc of peers.values()) {
-                if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+            for (let id in peers) {
+                if (peers[id] && peers[id].connected) {
                     connected++;
-                } else if (pc.iceConnectionState === 'checking') {
-                    checking++;
-                } else if (pc.iceConnectionState === 'failed') {
-                    failed++;
                 }
             }
             
-            peerCount.innerText = `${peers.size} (${connected} соед., ${checking} проверка, ${failed} ошибок)`;
+            peerCount.innerText = `${total} (${connected} соед.)`;
             
             if (connected > 0) {
                 peerStatus.className = 'status-dot green';
-            } else if (checking > 0) {
+            } else if (total > 0) {
                 peerStatus.className = 'status-dot yellow';
-            } else if (failed > 0) {
-                peerStatus.className = 'status-dot red';
             } else {
                 peerStatus.className = 'status-dot gray';
             }
         }
 
-        // ------------------------------------------------------------
-        function startConnectionCheck() {
-            if (connectionCheckInterval) clearInterval(connectionCheckInterval);
-            
-            connectionCheckInterval = setInterval(() => {
-                if (!isInRoom || !currentRoom) return;
-                
-                const memberCountElement = document.getElementById('memberCount');
-                const currentMemberCount = parseInt(memberCountElement.innerText);
-                
-                if (currentMemberCount > 1 && peers.size === 0) {
-                    log('⚠️ есть участники но нет пиров - пробуем переподключиться', 'warning');
-                    forceReconnect();
+        // ==================== ICE СЕРВЕРЫ ====================
+        function getIceServers() {
+            return [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+                {
+                    urls: [
+                        'turn:openrelay.metered.ca:80',
+                        'turn:openrelay.metered.ca:443'
+                    ],
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
                 }
-            }, 5000);
+            ];
         }
 
-        // ------------------------------------------------------------
-        async function joinRoom(roomId) {
+        // ==================== СОЗДАНИЕ PEER ====================
+        function createPeerWith(userId, userName) {
+            if (peers[userId] && !peers[userId].destroyed) {
+                log(`пир с ${userName} уже существует`, 'info');
+                return;
+            }
+            
+            log(`создаю пир с ${userName}`, 'info');
+            
+            const isInit = myUserId < userId;
+            
+            try {
+                const peer = new SimplePeer({ 
+                    initiator: isInit, 
+                    stream: localStream,
+                    trickle: true,
+                    config: { iceServers: getIceServers() }
+                });
+                
+                peer.userName = userName;
+                
+                // Создаем аудио элемент
+                const audioEl = document.createElement('audio');
+                audioEl.id = `audio-${userId}`;
+                audioEl.autoplay = true;
+                audioEl.style.display = 'none';
+                document.body.appendChild(audioEl);
+                audioElements[userId] = audioEl;
+
+                peer.on('signal', data => {
+                    log(`📤 отправка сигнала для ${userName}`, 'info');
+                    db.ref('calls/' + currentRoom).push({
+                        from: myUserId,
+                        to: userId,
+                        data: data
+                    });
+                });
+
+                peer.on('stream', stream => {
+                    log(`📥 получен аудиопоток от ${userName}`, 'success');
+                    
+                    if (audioElements[userId]) {
+                        audioElements[userId].srcObject = stream;
+                        
+                        if (audioUnlocked) {
+                            audioElements[userId].play().catch(e => log(`ошибка: ${e.message}`, 'error'));
+                        }
+                    }
+                    
+                    updateAudioPlayers();
+                    
+                    // Анализатор громкости
+                    try {
+                        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        const analyser = audioContext.createAnalyser();
+                        const source = audioContext.createMediaStreamSource(stream);
+                        source.connect(analyser);
+                        
+                        analyser.fftSize = 256;
+                        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                        
+                        analyserIntervals[userId] = setInterval(() => {
+                            analyser.getByteFrequencyData(dataArray);
+                            const avg = dataArray.reduce((a, b) => a + b) / dataArray.length;
+                            
+                            const volumeEl = document.getElementById(`volumeFill_${userId}`);
+                            if (volumeEl) {
+                                const percent = Math.min(100, (avg / 128) * 100);
+                                volumeEl.style.width = percent + '%';
+                            }
+                        }, 100);
+                    } catch (e) {
+                        log(`ошибка анализатора: ${e.message}`, 'error');
+                    }
+                    
+                    // Применяем накопленные сигналы
+                    if (pendingSignals[userId]) {
+                        log(`📦 применяю ${pendingSignals[userId].length} накопленных сигналов`, 'info');
+                        pendingSignals[userId].forEach(signalData => {
+                            try {
+                                peer.signal(signalData);
+                            } catch (e) {
+                                log(`ошибка сигнала: ${e.message}`, 'error');
+                            }
+                        });
+                        delete pendingSignals[userId];
+                    }
+                });
+
+                peer.on('connect', () => {
+                    log(`✅ соединение с ${userName} установлено`, 'success');
+                    updatePeerStats();
+                    
+                    if (reconnectTimeouts[userId]) {
+                        clearTimeout(reconnectTimeouts[userId]);
+                        delete reconnectTimeouts[userId];
+                    }
+                });
+
+                peer.on('error', (err) => {
+                    log(`❌ ошибка пира с ${userName}: ${err.message}`, 'error');
+                    
+                    if (!reconnectTimeouts[userId] && allUsers[userId]) {
+                        reconnectTimeouts[userId] = setTimeout(() => {
+                            log(`🔄 переподключение к ${userName}...`, 'warning');
+                            if (peers[userId] && !peers[userId].destroyed) {
+                                peers[userId].destroy();
+                            }
+                            delete peers[userId];
+                            createPeerWith(userId, userName);
+                            delete reconnectTimeouts[userId];
+                        }, 3000);
+                    }
+                });
+
+                peer.on('close', () => {
+                    log(`🔒 пир с ${userName} закрыт`, 'info');
+                    
+                    if (audioElements[userId]) {
+                        audioElements[userId].remove();
+                        delete audioElements[userId];
+                    }
+                    
+                    if (analyserIntervals[userId]) {
+                        clearInterval(analyserIntervals[userId]);
+                        delete analyserIntervals[userId];
+                    }
+                    
+                    updateAudioPlayers();
+                    updatePeerStats();
+                });
+
+                peers[userId] = peer;
+                updatePeerStats();
+                
+                // Применяем накопленные сигналы через секунду
+                if (pendingSignals[userId]) {
+                    setTimeout(() => {
+                        if (peers[userId] && !peers[userId].destroyed) {
+                            pendingSignals[userId].forEach(signalData => {
+                                try {
+                                    peers[userId].signal(signalData);
+                                } catch (e) {
+                                    log(`ошибка сигнала: ${e.message}`, 'error');
+                                }
+                            });
+                            delete pendingSignals[userId];
+                        }
+                    }, 1000);
+                }
+
+            } catch (err) {
+                log(`❌ ошибка создания пира: ${err.message}`, 'error');
+            }
+        }
+
+        // ==================== ВХОД В КОМНАТУ ====================
+        async function joinRoom() {
+            const roomId = roomInput.value.trim();
             if (!roomId) { log('введите id комнаты', 'error'); return; }
             
             if (currentRoom) {
-                log('сначала покидаем текущую комнату', 'warning');
                 await leaveRoom();
             }
 
-            // Пробуем получить микрофон, но продолжаем даже если не получилось
             await initMic().catch(() => {});
 
             currentRoom = roomId;
@@ -1157,171 +1078,92 @@
             currentRoomSpan.innerText = roomId;
             log(`вход в комнату: ${roomId}`, 'info');
 
-            await db.ref(`rooms/${roomId}/members/${myUserId}`).set({
-                joined: Date.now()
+            roomRef = db.ref('rooms/' + roomId);
+            
+            // Добавляем себя
+            await roomRef.child('users/' + myUserId).set({ 
+                name: myUserId,
+                timestamp: Date.now()
+            });
+            roomRef.child('users/' + myUserId).onDisconnect().remove();
+
+            // Слушаем calls
+            callsRef = db.ref('calls/' + roomId);
+            callsRef.on('child_added', (snap) => {
+                const signal = snap.val();
+                if (signal.from !== myUserId) {
+                    log(`📨 сигнал от ${signal.from}`, 'info');
+                    
+                    if (peers[signal.from] && !peers[signal.from].destroyed) {
+                        try {
+                            peers[signal.from].signal(signal.data);
+                        } catch (e) {
+                            log(`ошибка сигнала: ${e.message}`, 'error');
+                        }
+                    } else {
+                        if (!pendingSignals[signal.from]) pendingSignals[signal.from] = [];
+                        pendingSignals[signal.from].push(signal.data);
+                    }
+                    snap.ref.remove();
+                }
             });
 
-            // Запускаем проверку соединений
-            startConnectionCheck();
-
-            db.ref(`rooms/${roomId}/members`).on('value', (snap) => {
-                if (!isInRoom) return;
+            // Слушаем users
+            roomRef.child('users').on('value', (snap) => {
+                const users = snap.val() || {};
                 
-                const members = snap.val() || {};
-                const now = Date.now();
-                
-                const activeMembers = {};
-                for (const [uid, data] of Object.entries(members)) {
-                    if (data.joined && now - data.joined <= 30000) {
-                        activeMembers[uid] = data;
-                    }
-                }
-                
-                const userIds = Object.keys(activeMembers);
-                
-                memberCount.innerText = userIds.length;
-                
-                membersList.innerHTML = '';
-                userIds.forEach(uid => {
-                    const span = document.createElement('span');
-                    span.className = 'member-badge-metro';
-                    span.innerText = uid + (uid === myUserId ? ' (я)' : '');
-                    membersList.appendChild(span);
-                });
-
-                log(`участники: ${userIds.join(', ') || 'никого'}`, 'info');
-
-                // Создаём пиры для всех участников
-                userIds.forEach(async (uid) => {
-                    if (uid === myUserId || !isInRoom) return;
-                    
-                    if (!peers.has(uid) && shouldCreateOffer(uid)) {
-                        log(`новый участник ${uid}, создаю offer (я инициатор)`, 'info');
-                        await createOffer(uid);
+                // Находим новых участников
+                Object.keys(users).forEach(userId => {
+                    if (userId !== myUserId && !allUsers[userId]) {
+                        log(`🔔 новый участник: ${userId}`, 'info');
                     }
                 });
-
-                // Удаляем пиры вышедших участников
-                for (let uid of peers.keys()) {
-                    if (!userIds.includes(uid)) {
-                        log(`участник ${uid} вышел`, 'info');
-                        try {
-                            peers.get(uid).close();
-                            peers.delete(uid);
-                            
-                            if (audioPlayers.has(uid)) {
-                                audioPlayers.get(uid).element.remove();
-                                audioPlayers.delete(uid);
-                            }
-                            reconnectAttempts.delete(uid);
-                        } catch (err) {
-                            log(`ошибка удаления пира: ${err.message}`, 'error');
+                
+                // Находим вышедших
+                Object.keys(allUsers).forEach(userId => {
+                    if (userId !== myUserId && !users[userId]) {
+                        log(`🔔 участник вышел: ${userId}`, 'info');
+                    }
+                });
+                
+                allUsers = users;
+                
+                // Создаем пиры для новых
+                Object.keys(users).forEach(userId => {
+                    if (userId !== myUserId && !peers[userId]) {
+                        createPeerWith(userId, userId);
+                    }
+                });
+                
+                // Удаляем пиры вышедших
+                Object.keys(peers).forEach(userId => {
+                    if (!users[userId]) {
+                        if (peers[userId] && !peers[userId].destroyed) {
+                            peers[userId].destroy();
+                        }
+                        delete peers[userId];
+                        
+                        if (audioElements[userId]) {
+                            audioElements[userId].remove();
+                            delete audioElements[userId];
+                        }
+                        
+                        if (analyserIntervals[userId]) {
+                            clearInterval(analyserIntervals[userId]);
+                            delete analyserIntervals[userId];
                         }
                     }
-                }
+                });
                 
-                updatePeerStats();
-                updateDebugInfo();
+                updateMembersList();
                 updateAudioPlayers();
-            });
-
-            db.ref(`rooms/${roomId}/offers`).on('child_added', (snap) => {
-                if (!isInRoom) return;
-                
-                const fromUser = snap.key;
-                if (fromUser === myUserId) return;
-                if (processingOffers.has(fromUser)) return;
-                
-                const offers = snap.val();
-                if (offers && offers[myUserId]) {
-                    const offerData = offers[myUserId];
-                    log(`получен offer от ${fromUser}`, 'info');
-                    processingOffers.add(fromUser);
-                    
-                    (async () => {
-                        try {
-                            const pc = await createPeer(fromUser);
-                            
-                            if (pc.signalingState === 'stable') {
-                                await pc.setRemoteDescription(new RTCSessionDescription(offerData));
-                                log(`remote description установлен для ${fromUser}`, 'success');
-                                
-                                const answer = await pc.createAnswer();
-                                await pc.setLocalDescription(answer);
-                                
-                                await db.ref(`rooms/${roomId}/answers/${myUserId}/${fromUser}`).set({
-                                    type: answer.type,
-                                    sdp: answer.sdp
-                                });
-                                log(`answer отправлен для ${fromUser}`, 'success');
-                            }
-                            
-                        } catch (err) {
-                            log(`ошибка обработки offer: ${err.message}`, 'error');
-                        } finally {
-                            processingOffers.delete(fromUser);
-                        }
-                    })();
-                }
-            });
-
-            db.ref(`rooms/${roomId}/answers`).on('child_added', (snap) => {
-                if (!isInRoom) return;
-                
-                const fromUser = snap.key;
-                if (fromUser === myUserId) return;
-                
-                const answers = snap.val();
-                if (answers && answers[myUserId]) {
-                    const answerData = answers[myUserId];
-                    log(`получен answer от ${fromUser}`, 'info');
-                    
-                    (async () => {
-                        try {
-                            const pc = peers.get(fromUser);
-                            if (pc && pc.signalingState === 'have-local-offer') {
-                                await pc.setRemoteDescription(new RTCSessionDescription(answerData));
-                                log(`remote answer установлен для ${fromUser}`, 'success');
-                            }
-                        } catch (err) {
-                            log(`ошибка установки answer: ${err.message}`, 'error');
-                        }
-                    })();
-                }
-            });
-
-            db.ref(`rooms/${roomId}/candidates`).on('child_added', (snap) => {
-                if (!isInRoom) return;
-                
-                const fromUser = snap.key;
-                if (fromUser === myUserId) return;
-                
-                const candidates = snap.val();
-                if (candidates && candidates[myUserId]) {
-                    Object.values(candidates[myUserId]).forEach(candidateData => {
-                        const pc = peers.get(fromUser);
-                        if (pc && pc.remoteDescription) {
-                            pc.addIceCandidate(new RTCIceCandidate(candidateData))
-                                .catch(err => log(`ошибка добавления ice: ${err.message}`, 'error'));
-                        }
-                    });
-                }
+                updatePeerStats();
             });
 
             log('успешно вошли в комнату', 'success');
-            updateDebugInfo();
-            
-            // Периодическое обновление статуса
-            setInterval(() => {
-                if (currentRoom && isInRoom) {
-                    db.ref(`rooms/${currentRoom}/members/${myUserId}`).update({
-                        joined: Date.now()
-                    });
-                }
-            }, 5000);
         }
 
-        // ------------------------------------------------------------
+        // ==================== ВЫХОД ИЗ КОМНАТЫ ====================
         async function leaveRoom() {
             if (!currentRoom) {
                 log('вы не в комнате', 'warning');
@@ -1332,38 +1174,51 @@
             isInRoom = false;
             
             try {
-                await db.ref(`rooms/${roomId}/members/${myUserId}`).remove();
-                await db.ref(`rooms/${roomId}/offers/${myUserId}`).remove();
-                await db.ref(`rooms/${roomId}/answers/${myUserId}`).remove();
-                await db.ref(`rooms/${roomId}/candidates/${myUserId}`).remove();
-                
-                db.ref(`rooms/${roomId}/members`).off();
-                db.ref(`rooms/${roomId}/offers`).off();
-                db.ref(`rooms/${roomId}/answers`).off();
-                db.ref(`rooms/${roomId}/candidates`).off();
-                
-                await closeAllPeers();
-                processingOffers.clear();
-                
-                if (connectionCheckInterval) {
-                    clearInterval(connectionCheckInterval);
-                    connectionCheckInterval = null;
+                if (roomRef) {
+                    await roomRef.child('users/' + myUserId).remove();
+                    roomRef.child('users').off();
+                    roomRef = null;
                 }
+                
+                if (callsRef) {
+                    callsRef.off();
+                    callsRef = null;
+                }
+                
+                // Закрываем все пиры
+                Object.values(reconnectTimeouts).forEach(timeout => clearTimeout(timeout));
+                reconnectTimeouts = {};
+                
+                Object.values(analyserIntervals).forEach(interval => clearInterval(interval));
+                analyserIntervals = {};
+                
+                Object.values(peers).forEach(peer => {
+                    if (peer && !peer.destroyed) peer.destroy();
+                });
+                peers = {};
+                
+                Object.values(audioElements).forEach(audio => audio.remove());
+                audioElements = {};
+                
+                pendingSignals = {};
+                allUsers = {};
                 
                 currentRoom = null;
                 currentRoomSpan.innerText = '—';
                 membersList.innerHTML = '';
                 memberCount.innerText = '0';
                 
+                updateAudioPlayers();
+                updatePeerStats();
+                
                 log('вышли из комнаты', 'success');
-                updateDebugInfo();
                 
             } catch (err) {
                 log(`ошибка при выходе: ${err.message}`, 'error');
             }
         }
 
-        // ------------------------------------------------------------
+        // ==================== FIREBASE СТАТУС ====================
         db.ref('.info/connected').on('value', (snap) => {
             if (snap.val()) {
                 fbStatus.className = 'status-dot green';
@@ -1376,31 +1231,18 @@
             }
         });
 
-        joinBtn.addEventListener('click', () => {
-            joinRoom(roomInput.value.trim());
-        });
-
+        // ==================== ОБРАБОТЧИКИ ====================
+        joinBtn.addEventListener('click', joinRoom);
         leaveBtn.addEventListener('click', leaveRoom);
 
         window.addEventListener('beforeunload', () => {
             if (currentRoom) {
-                db.ref(`rooms/${currentRoom}/members/${myUserId}`).remove();
+                db.ref('rooms/' + currentRoom + '/users/' + myUserId).remove();
             }
         });
 
+        // ==================== СТАРТ ====================
         log(`ваш id: ${myUserId}`, 'info');
-        updateDebugInfo();
-        
-        // Принудительно пробуем включить звук каждые 2 секунды
-        setInterval(() => {
-            if (isInRoom && audioPlayers.size > 0) {
-                audioPlayers.forEach((data, userId) => {
-                    if (data.element.paused) {
-                        data.element.play().catch(err => {});
-                    }
-                });
-            }
-        }, 2000);
     </script>
 </body>
 </html>
