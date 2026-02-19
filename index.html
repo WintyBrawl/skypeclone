@@ -117,6 +117,7 @@
 
         .log-line.error { color: #ff8a8a; }
         .log-line.success { color: #90e090; }
+        .log-line.warning { color: #ffd966; }
 
         .log-controls {
             display: flex;
@@ -381,9 +382,20 @@
             font-size: 12px;
             font-family: monospace;
             border: 2px solid #333333;
+            white-space: pre-wrap;
+            word-break: break-all;
         }
 
-        /* Видимые аудиоплееры */
+        .connection-help {
+            background: #fff3cd;
+            border: 2px solid #856404;
+            color: #856404;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 12px;
+            font-weight: 300;
+        }
+
         .audio-players {
             display: flex;
             flex-direction: column;
@@ -499,23 +511,6 @@
                 height: 200px;
             }
         }
-
-        @media (max-width: 480px) {
-            .status-bar-metro {
-                flex-direction: column;
-                gap: 8px;
-            }
-            
-            .member-badge-metro {
-                font-size: 12px;
-                padding: 4px 8px;
-            }
-            
-            .metro-btn {
-                font-size: 14px;
-                padding: 10px 12px;
-            }
-        }
     </style>
 </head>
 <body>
@@ -559,6 +554,10 @@
                     
                     <button class="audio-test-btn" id="forceAudioBtn">🔊 принудительно включить звук</button>
                     
+                    <div class="connection-help" id="connectionHelp">
+                        ⚡ если звука нет, проверьте что оба в одной комнате и нажмите кнопку выше
+                    </div>
+                    
                     <div class="debug-info" id="debugInfo">
                         статус: ожидание...
                     </div>
@@ -590,7 +589,6 @@
                     </div>
                 </div>
                 
-                <!-- Видимые аудиоплееры -->
                 <div class="right-content">
                     <div style="font-weight: 300; margin-bottom: 15px; color: #1b1f24;">входящий звук:</div>
                     <div id="audioPlayersContainer" class="audio-players"></div>
@@ -621,8 +619,8 @@
         let currentRoom = null;
         let processingOffers = new Set();
         let isInRoom = false;
-        let audioContext = null;
-        let audioPlayers = new Map(); // userId -> { element, stream }
+        let audioPlayers = new Map();
+        let reconnectTimer = null;
 
         const logPanel = document.getElementById('logPanel');
         const logContent = document.getElementById('logContent');
@@ -649,21 +647,51 @@
         const peerStatus = document.getElementById('peerStatus');
 
         // ------------------------------------------------------------
-        // Инициализация AudioContext для визуализации
-        function initAudioContext() {
-            if (!audioContext) {
-                try {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    log('audio context создан', 'success');
-                } catch (err) {
-                    log(`ошибка audio context: ${err.message}`, 'error');
+        // Конфигурация ICE серверов с TURN для обхода NAT
+        const iceServers = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+                // Публичные TURN серверы (для обхода симметричных NAT)
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
                 }
-            }
-            return audioContext;
-        }
+            ],
+            iceCandidatePoolSize: 10,
+            iceTransportPolicy: 'all'
+        };
 
         // ------------------------------------------------------------
-        // Обновление отображения аудиоплееров
+        window.playAudio = async function(userId) {
+            log(`ручное включение звука для ${userId}`, 'info');
+            
+            const data = audioPlayers.get(userId);
+            if (data && data.element) {
+                try {
+                    await data.element.play();
+                    log(`звук включен для ${userId}`, 'success');
+                } catch (err) {
+                    log(`ошибка: ${err.message}`, 'error');
+                }
+            }
+        };
+
+        // ------------------------------------------------------------
         function updateAudioPlayers() {
             if (audioPlayers.size === 0) {
                 audioPlayersContainer.innerHTML = '';
@@ -691,71 +719,22 @@
             }
             
             audioPlayersContainer.innerHTML = html;
-            
-            // Запускаем анализатор для визуализации
-            startVolumeAnalyzers();
         }
 
         // ------------------------------------------------------------
-        // Запуск анализаторов громкости
-        function startVolumeAnalyzers() {
-            if (!audioContext) return;
-            
-            for (let [userId, data] of audioPlayers) {
-                if (data.stream && data.analyser) {
-                    const analyser = data.analyser;
-                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                    
-                    const updateVolume = () => {
-                        if (!audioPlayers.has(userId)) return;
-                        
-                        analyser.getByteFrequencyData(dataArray);
-                        let sum = 0;
-                        for (let i = 0; i < dataArray.length; i++) {
-                            sum += dataArray[i];
-                        }
-                        let avg = sum / dataArray.length;
-                        let percent = (avg / 255) * 100;
-                        
-                        const fill = document.getElementById(`volumeFill_${userId}`);
-                        if (fill) {
-                            fill.style.width = percent + '%';
-                        }
-                        
-                        requestAnimationFrame(updateVolume);
-                    };
-                    
-                    updateVolume();
-                }
-            }
-        }
-
-        // ------------------------------------------------------------
-        // Принудительное воспроизведение аудио для конкретного пользователя
-        window.playAudio = async function(userId) {
-            log(`ручное включение звука для ${userId}`, 'info');
-            
-            const data = audioPlayers.get(userId);
-            if (data && data.element) {
-                try {
-                    await data.element.play();
-                    log(`звук включен для ${userId}`, 'success');
-                } catch (err) {
-                    log(`ошибка: ${err.message}`, 'error');
-                }
-            }
-        };
-
-        // ------------------------------------------------------------
-        // Обновление отладочной информации
         function updateDebugInfo() {
-            let info = `пиры: ${peers.size}, аудиоплееры: ${audioPlayers.size}, `;
-            info += `состояние: ${isInRoom ? 'в комнате' : 'вне комнаты'}`;
+            let info = `пиры: ${peers.size}\n`;
+            info += `аудиоплееры: ${audioPlayers.size}\n`;
+            info += `состояние: ${isInRoom ? 'в комнате' : 'вне комнаты'}\n\n`;
+            
+            peers.forEach((pc, id) => {
+                info += `${id}: ice=${pc.iceConnectionState}, conn=${pc.connectionState}\n`;
+            });
+            
             debugInfo.innerText = info;
         }
 
         // ------------------------------------------------------------
-        // Принудительное включение всех аудиоэлементов
         async function forcePlayAllAudio() {
             log('принудительное включение звука...', 'info');
             
@@ -800,6 +779,7 @@
             line.className = 'log-line';
             if (type === 'error') line.classList.add('error');
             if (type === 'success') line.classList.add('success');
+            if (type === 'warning') line.classList.add('warning');
             
             let prefix = '';
             if (type === 'error') prefix = 'ERROR: ';
@@ -896,12 +876,7 @@
 
             log(`создание нового пира для ${targetId}`, 'info');
             
-            const pc = new RTCPeerConnection({
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
-                ]
-            });
+            const pc = new RTCPeerConnection(iceServers);
 
             if (localStream) {
                 localStream.getTracks().forEach(track => {
@@ -925,39 +900,25 @@
             pc.ontrack = (e) => {
                 log(`получен аудиотрек от ${targetId}`, 'success');
                 
-                // Создаем аудиоэлемент
+                if (audioPlayers.has(targetId)) {
+                    try {
+                        audioPlayers.get(targetId).element.remove();
+                    } catch (err) {}
+                }
+                
                 const audio = new Audio();
                 audio.controls = false;
                 audio.autoplay = true;
                 audio.style.display = 'none';
                 audio.srcObject = e.streams[0];
                 
-                // Добавляем в DOM
                 document.body.appendChild(audio);
                 
-                // Создаем анализатор для визуализации
-                const ctx = initAudioContext();
-                let analyser = null;
-                
-                if (ctx) {
-                    try {
-                        const source = ctx.createMediaStreamSource(e.streams[0]);
-                        analyser = ctx.createAnalyser();
-                        analyser.fftSize = 256;
-                        source.connect(analyser);
-                    } catch (err) {
-                        log(`ошибка создания анализатора: ${err.message}`, 'error');
-                    }
-                }
-                
-                // Сохраняем
                 audioPlayers.set(targetId, {
                     element: audio,
-                    stream: e.streams[0],
-                    analyser: analyser
+                    stream: e.streams[0]
                 });
                 
-                // Пробуем воспроизвести
                 audio.play()
                     .then(() => log(`аудио от ${targetId} воспроизводится`, 'success'))
                     .catch(err => log(`ошибка автовоспроизведения: ${err.message}`, 'warning'));
@@ -967,6 +928,22 @@
 
             pc.oniceconnectionstatechange = () => {
                 log(`ice ${targetId}: ${pc.iceConnectionState}`, 'info');
+                
+                if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+                    log(`проблема соединения с ${targetId}, пробуем переподключиться`, 'warning');
+                    
+                    if (reconnectTimer) clearTimeout(reconnectTimer);
+                    reconnectTimer = setTimeout(() => {
+                        if (isInRoom && currentRoom && peers.has(targetId)) {
+                            log(`переподключение к ${targetId}...`, 'info');
+                            peers.delete(targetId);
+                            if (shouldCreateOffer(targetId)) {
+                                createOffer(targetId);
+                            }
+                        }
+                    }, 3000);
+                }
+                
                 updatePeerStats();
                 updateDebugInfo();
             };
@@ -981,6 +958,26 @@
             updatePeerStats();
             updateDebugInfo();
             return pc;
+        }
+
+        async function createOffer(targetId) {
+            try {
+                const pc = await createPeer(targetId);
+                
+                const offer = await pc.createOffer({
+                    offerToReceiveAudio: true
+                });
+                await pc.setLocalDescription(offer);
+                
+                await db.ref(`rooms/${currentRoom}/offers/${myUserId}/${targetId}`).set({
+                    type: offer.type,
+                    sdp: offer.sdp
+                });
+                log(`offer отправлен для ${targetId}`, 'success');
+                
+            } catch (err) {
+                log(`ошибка создания offer: ${err.message}`, 'error');
+            }
         }
 
         async function closeAllPeers() {
@@ -999,6 +996,8 @@
             
             peers.clear();
             audioPlayers.clear();
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            
             updatePeerStats();
             updateDebugInfo();
             updateAudioPlayers();
@@ -1078,24 +1077,7 @@
                     
                     if (!peers.has(uid) && shouldCreateOffer(uid)) {
                         log(`новый участник ${uid}, создаю offer (я инициатор)`, 'info');
-                        
-                        try {
-                            const pc = await createPeer(uid);
-                            
-                            const offer = await pc.createOffer({
-                                offerToReceiveAudio: true
-                            });
-                            await pc.setLocalDescription(offer);
-                            
-                            await db.ref(`rooms/${roomId}/offers/${myUserId}/${uid}`).set({
-                                type: offer.type,
-                                sdp: offer.sdp
-                            });
-                            log(`offer отправлен для ${uid}`, 'success');
-                            
-                        } catch (err) {
-                            log(`ошибка создания offer: ${err.message}`, 'error');
-                        }
+                        await createOffer(uid);
                     }
                 });
 
@@ -1278,6 +1260,13 @@
 
         log(`ваш id: ${myUserId}`, 'info');
         updateDebugInfo();
+        
+        // Принудительно пробуем включить звук каждые 3 секунды
+        setInterval(() => {
+            if (isInRoom && audioPlayers.size > 0) {
+                forcePlayAllAudio();
+            }
+        }, 3000);
     </script>
 </body>
 </html>
