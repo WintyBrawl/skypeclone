@@ -451,6 +451,17 @@
             transition: width 0.1s;
         }
 
+        .mic-warning {
+            background: #f8d7da;
+            border: 2px solid #721c24;
+            color: #721c24;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 12px;
+            font-weight: 300;
+            display: none;
+        }
+
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -553,9 +564,14 @@
                     <button class="metro-btn" id="testMicBtn">тест микрофона</button>
                     
                     <button class="audio-test-btn" id="forceAudioBtn">🔊 принудительно включить звук</button>
+                    <button class="audio-test-btn" id="forceReconnectBtn">🔄 принудительное переподключение</button>
                     
                     <div class="connection-help" id="connectionHelp">
-                        ⚡ если звука нет, проверьте что оба в одной комнате и нажмите кнопку выше
+                        ⚡ если звука нет, нажмите кнопку переподключения выше
+                    </div>
+                    
+                    <div class="mic-warning" id="micWarning">
+                        ⚠️ микрофон не доступен, но вы можете слышать других
                     </div>
                     
                     <div class="debug-info" id="debugInfo">
@@ -621,6 +637,8 @@
         let isInRoom = false;
         let audioPlayers = new Map();
         let reconnectTimer = null;
+        let connectionCheckInterval = null;
+        let micAvailable = false;
 
         const logPanel = document.getElementById('logPanel');
         const logContent = document.getElementById('logContent');
@@ -637,9 +655,11 @@
         const memberCount = document.getElementById('memberCount');
         const peerCount = document.getElementById('peerCount');
         const forceAudioBtn = document.getElementById('forceAudioBtn');
+        const forceReconnectBtn = document.getElementById('forceReconnectBtn');
         const debugInfo = document.getElementById('debugInfo');
         const audioPlayersContainer = document.getElementById('audioPlayersContainer');
         const noAudioMsg = document.getElementById('noAudioMsg');
+        const micWarning = document.getElementById('micWarning');
         
         const fbStatus = document.getElementById('fbStatus');
         const fbStatusText = document.getElementById('fbStatusText');
@@ -655,7 +675,6 @@
                 { urls: 'stun:stun2.l.google.com:19302' },
                 { urls: 'stun:stun3.l.google.com:19302' },
                 { urls: 'stun:stun4.l.google.com:19302' },
-                // Публичные TURN серверы (для обхода симметричных NAT)
                 {
                     urls: 'turn:openrelay.metered.ca:80',
                     username: 'openrelayproject',
@@ -725,7 +744,8 @@
         function updateDebugInfo() {
             let info = `пиры: ${peers.size}\n`;
             info += `аудиоплееры: ${audioPlayers.size}\n`;
-            info += `состояние: ${isInRoom ? 'в комнате' : 'вне комнаты'}\n\n`;
+            info += `состояние: ${isInRoom ? 'в комнате' : 'вне комнаты'}\n`;
+            info += `микрофон: ${micAvailable ? 'доступен' : 'не доступен'}\n\n`;
             
             peers.forEach((pc, id) => {
                 info += `${id}: ice=${pc.iceConnectionState}, conn=${pc.connectionState}\n`;
@@ -760,7 +780,35 @@
             updateDebugInfo();
         }
 
+        // ------------------------------------------------------------
+        async function forceReconnect() {
+            log('принудительное переподключение...', 'info');
+            
+            if (!currentRoom || !isInRoom) {
+                log('вы не в комнате', 'warning');
+                return;
+            }
+            
+            const roomId = currentRoom;
+            
+            // Закрываем все пиры
+            await closeAllPeers();
+            
+            // Очищаем свои сигналы в Firebase
+            await db.ref(`rooms/${roomId}/offers/${myUserId}`).remove();
+            await db.ref(`rooms/${roomId}/answers/${myUserId}`).remove();
+            await db.ref(`rooms/${roomId}/candidates/${myUserId}`).remove();
+            
+            // Обновляем свой статус
+            await db.ref(`rooms/${roomId}/members/${myUserId}`).set({
+                joined: Date.now()
+            });
+            
+            log('переподключение инициировано', 'success');
+        }
+
         forceAudioBtn.addEventListener('click', forcePlayAllAudio);
+        forceReconnectBtn.addEventListener('click', forceReconnect);
 
         // ------------------------------------------------------------
         logToggleBtn.addEventListener('click', () => {
@@ -808,16 +856,21 @@
             });
         });
 
+        // ------------------------------------------------------------
         async function initMic(force = false) {
             if (localStream && !force) {
+                micAvailable = true;
                 micStatus.className = 'status-dot green';
+                micWarning.style.display = 'none';
                 return localStream;
             }
             
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                micStatus.className = 'status-dot red';
-                log('getUserMedia не поддерживается (нужен HTTPS)', 'error');
-                throw new Error('getUserMedia not supported');
+                micAvailable = false;
+                micStatus.className = 'status-dot gray';
+                micWarning.style.display = 'block';
+                log('getUserMedia не поддерживается (будете только слушать)', 'warning');
+                return null;
             }
             
             try {
@@ -832,7 +885,9 @@
                     }
                 });
                 
+                micAvailable = true;
                 micStatus.className = 'status-dot green';
+                micWarning.style.display = 'none';
                 log('микрофон получен', 'success');
                 
                 localStream.getTracks().forEach(track => {
@@ -842,42 +897,41 @@
                 return localStream;
                 
             } catch (err) {
-                micStatus.className = 'status-dot red';
+                micAvailable = false;
+                micStatus.className = 'status-dot gray';
+                micWarning.style.display = 'block';
                 
-                let msg = 'ошибка микрофона: ';
+                let msg = 'микрофон не доступен (будете только слушать): ';
                 if (err.name === 'NotAllowedError') msg += 'доступ запрещён';
                 else if (err.name === 'NotFoundError') msg += 'микрофон не найден';
                 else msg += err.message;
                 
-                log(msg, 'error');
-                throw err;
+                log(msg, 'warning');
+                return null;
             }
         }
 
         testMicBtn.addEventListener('click', async () => {
-            try {
-                await initMic(true);
+            const stream = await initMic(true);
+            if (stream) {
                 log('тест микрофона успешен', 'success');
-            } catch (err) {
-                log('тест микрофона не пройден', 'error');
+            } else {
+                log('микрофон не доступен', 'warning');
             }
         });
 
+        // ------------------------------------------------------------
         async function createPeer(targetId) {
             if (peers.has(targetId)) {
                 log(`использую существующий пир ${targetId}`, 'info');
                 return peers.get(targetId);
             }
 
-            if (!localStream) {
-                log('нет микрофона, пробуем получить', 'warning');
-                try { await initMic(); } catch (err) {}
-            }
-
             log(`создание нового пира для ${targetId}`, 'info');
             
             const pc = new RTCPeerConnection(iceServers);
 
+            // Добавляем аудиотреки только если микрофон доступен
             if (localStream) {
                 localStream.getTracks().forEach(track => {
                     try {
@@ -887,6 +941,14 @@
                         log(`ошибка добавления трека: ${err.message}`, 'error');
                     }
                 });
+            } else {
+                log(`создаю пир без микрофона для ${targetId} (только прием)`, 'info');
+                // Добавляем трансивер для приема аудио
+                try {
+                    pc.addTransceiver('audio', { direction: 'recvonly' });
+                } catch (err) {
+                    log(`ошибка добавления трансивера: ${err.message}`, 'error');
+                }
             }
 
             pc.onicecandidate = (e) => {
@@ -929,8 +991,13 @@
             pc.oniceconnectionstatechange = () => {
                 log(`ice ${targetId}: ${pc.iceConnectionState}`, 'info');
                 
+                if (pc.iceConnectionState === 'connected') {
+                    log(`✅ соединение с ${targetId} установлено`, 'success');
+                    setTimeout(forcePlayAllAudio, 500);
+                }
+                
                 if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-                    log(`проблема соединения с ${targetId}, пробуем переподключиться`, 'warning');
+                    log(`проблема соединения с ${targetId}`, 'warning');
                     
                     if (reconnectTimer) clearTimeout(reconnectTimer);
                     reconnectTimer = setTimeout(() => {
@@ -960,6 +1027,7 @@
             return pc;
         }
 
+        // ------------------------------------------------------------
         async function createOffer(targetId) {
             try {
                 const pc = await createPeer(targetId);
@@ -980,6 +1048,7 @@
             }
         }
 
+        // ------------------------------------------------------------
         async function closeAllPeers() {
             for (let [id, pc] of peers) {
                 try {
@@ -1004,10 +1073,12 @@
             log('все пиры закрыты', 'info');
         }
 
+        // ------------------------------------------------------------
         function shouldCreateOffer(remoteId) {
             return myUserId < remoteId;
         }
 
+        // ------------------------------------------------------------
         function updatePeerStats() {
             let connected = 0;
             for (let pc of peers.values()) {
@@ -1026,6 +1097,33 @@
             }
         }
 
+        // ------------------------------------------------------------
+        function startConnectionCheck() {
+            if (connectionCheckInterval) clearInterval(connectionCheckInterval);
+            
+            connectionCheckInterval = setInterval(() => {
+                if (!isInRoom || !currentRoom) return;
+                
+                const memberCount = parseInt(document.getElementById('memberCount').innerText);
+                if (memberCount > 1 && peers.size === 0) {
+                    log('⚠️ есть участники но нет пиров - пробуем переподключиться', 'warning');
+                    forceReconnect();
+                }
+                
+                // Проверяем состояние каждого пира
+                peers.forEach((pc, id) => {
+                    if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+                        log(`пир ${id} в состоянии ${pc.iceConnectionState}, пробуем пересоздать`, 'warning');
+                        peers.delete(id);
+                        if (shouldCreateOffer(id)) {
+                            createOffer(id);
+                        }
+                    }
+                });
+            }, 5000);
+        }
+
+        // ------------------------------------------------------------
         async function joinRoom(roomId) {
             if (!roomId) { log('введите id комнаты', 'error'); return; }
             
@@ -1034,6 +1132,7 @@
                 await leaveRoom();
             }
 
+            // Пробуем получить микрофон, но продолжаем даже если не получилось
             await initMic().catch(() => {});
 
             currentRoom = roomId;
@@ -1044,6 +1143,9 @@
             await db.ref(`rooms/${roomId}/members/${myUserId}`).set({
                 joined: Date.now()
             });
+
+            // Запускаем проверку соединений
+            startConnectionCheck();
 
             db.ref(`rooms/${roomId}/members`).on('value', (snap) => {
                 if (!isInRoom) return;
@@ -1072,6 +1174,7 @@
 
                 log(`участники: ${userIds.join(', ') || 'никого'}`, 'info');
 
+                // Создаём пиры для всех участников, даже если нет микрофона
                 userIds.forEach(async (uid) => {
                     if (uid === myUserId || !isInRoom) return;
                     
@@ -1081,6 +1184,7 @@
                     }
                 });
 
+                // Удаляем пиры вышедших участников
                 for (let uid of peers.keys()) {
                     if (!userIds.includes(uid)) {
                         log(`участник ${uid} вышел`, 'info');
@@ -1189,6 +1293,7 @@
             log('успешно вошли в комнату', 'success');
             updateDebugInfo();
             
+            // Периодическое обновление статуса
             setInterval(() => {
                 if (currentRoom && isInRoom) {
                     db.ref(`rooms/${currentRoom}/members/${myUserId}`).update({
@@ -1198,6 +1303,7 @@
             }, 5000);
         }
 
+        // ------------------------------------------------------------
         async function leaveRoom() {
             if (!currentRoom) {
                 log('вы не в комнате', 'warning');
@@ -1221,6 +1327,11 @@
                 await closeAllPeers();
                 processingOffers.clear();
                 
+                if (connectionCheckInterval) {
+                    clearInterval(connectionCheckInterval);
+                    connectionCheckInterval = null;
+                }
+                
                 currentRoom = null;
                 currentRoomSpan.innerText = '—';
                 membersList.innerHTML = '';
@@ -1234,6 +1345,7 @@
             }
         }
 
+        // ------------------------------------------------------------
         db.ref('.info/connected').on('value', (snap) => {
             if (snap.val()) {
                 fbStatus.className = 'status-dot green';
