@@ -462,6 +462,15 @@
             display: none;
         }
 
+        .connection-status-text {
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
+        .connection-status-text.connected { color: #00b050; }
+        .connection-status-text.checking { color: #f1c40f; }
+        .connection-status-text.failed { color: #e81123; }
+
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -567,7 +576,7 @@
                     <button class="audio-test-btn" id="forceReconnectBtn">🔄 принудительное переподключение</button>
                     
                     <div class="connection-help" id="connectionHelp">
-                        ⚡ если звука нет, нажмите кнопку переподключения выше
+                        ⚡ если соединение не устанавливается, нажмите кнопку переподключения выше
                     </div>
                     
                     <div class="mic-warning" id="micWarning">
@@ -639,6 +648,7 @@
         let reconnectTimer = null;
         let connectionCheckInterval = null;
         let micAvailable = false;
+        let reconnectAttempts = new Map(); // Счетчик попыток для каждого пира
 
         const logPanel = document.getElementById('logPanel');
         const logContent = document.getElementById('logContent');
@@ -675,6 +685,7 @@
                 { urls: 'stun:stun2.l.google.com:19302' },
                 { urls: 'stun:stun3.l.google.com:19302' },
                 { urls: 'stun:stun4.l.google.com:19302' },
+                // Публичные TURN серверы
                 {
                     urls: 'turn:openrelay.metered.ca:80',
                     username: 'openrelayproject',
@@ -689,10 +700,19 @@
                     urls: 'turn:openrelay.metered.ca:443?transport=tcp',
                     username: 'openrelayproject',
                     credential: 'openrelayproject'
+                },
+                // Дополнительные TURN серверы
+                {
+                    urls: 'turn:turn.anyfirewall.com:443?transport=tcp',
+                    username: 'webrtc',
+                    credential: 'webrtc'
                 }
             ],
+            iceCandidatePoolSize: 20, // Увеличиваем пул кандидатов
+            iceTransportPolicy: 'all',
             iceCandidatePoolSize: 10,
-            iceTransportPolicy: 'all'
+            bundlePolicy: 'max-bundle',
+            rtcpMuxPolicy: 'require'
         };
 
         // ------------------------------------------------------------
@@ -722,12 +742,14 @@
             
             let html = '';
             for (let [userId, data] of audioPlayers) {
+                const connectionState = peers.has(userId) ? peers.get(userId).iceConnectionState : 'no peer';
                 html += `
                     <div class="audio-player-item" id="player_${userId}">
                         <div class="audio-player-header">
                             <span>${userId}</span>
                             <div class="audio-player-controls">
                                 <button class="audio-play-btn" onclick="playAudio('${userId}')">▶ включить</button>
+                                <span class="connection-status-text ${connectionState}">${connectionState}</span>
                             </div>
                         </div>
                         <div class="audio-volume" id="volume_${userId}">
@@ -991,28 +1013,41 @@
             pc.oniceconnectionstatechange = () => {
                 log(`ice ${targetId}: ${pc.iceConnectionState}`, 'info');
                 
-                if (pc.iceConnectionState === 'connected') {
+                if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
                     log(`✅ соединение с ${targetId} установлено`, 'success');
+                    reconnectAttempts.delete(targetId);
                     setTimeout(forcePlayAllAudio, 500);
                 }
                 
                 if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
                     log(`проблема соединения с ${targetId}`, 'warning');
                     
-                    if (reconnectTimer) clearTimeout(reconnectTimer);
-                    reconnectTimer = setTimeout(() => {
-                        if (isInRoom && currentRoom && peers.has(targetId)) {
-                            log(`переподключение к ${targetId}...`, 'info');
-                            peers.delete(targetId);
-                            if (shouldCreateOffer(targetId)) {
-                                createOffer(targetId);
+                    let attempts = reconnectAttempts.get(targetId) || 0;
+                    if (attempts < 5) { // Увеличиваем до 5 попыток
+                        reconnectAttempts.set(targetId, attempts + 1);
+                        
+                        if (reconnectTimer) clearTimeout(reconnectTimer);
+                        reconnectTimer = setTimeout(() => {
+                            if (isInRoom && currentRoom && peers.has(targetId)) {
+                                log(`переподключение к ${targetId} (попытка ${attempts + 1}/5)...`, 'info');
+                                peers.delete(targetId);
+                                if (shouldCreateOffer(targetId)) {
+                                    createOffer(targetId);
+                                }
                             }
-                        }
-                    }, 3000);
+                        }, 2000 * (attempts + 1)); // Увеличиваем таймаут с каждой попыткой
+                    } else {
+                        log(`слишком много попыток подключения к ${targetId}`, 'error');
+                    }
                 }
                 
                 updatePeerStats();
                 updateDebugInfo();
+                updateAudioPlayers();
+            };
+
+            pc.onicecandidateerror = (e) => {
+                log(`ICE candidate error для ${targetId}: ${e.errorText}`, 'error');
             };
 
             pc.onconnectionstatechange = () => {
@@ -1033,7 +1068,8 @@
                 const pc = await createPeer(targetId);
                 
                 const offer = await pc.createOffer({
-                    offerToReceiveAudio: true
+                    offerToReceiveAudio: true,
+                    voiceActivityDetection: true
                 });
                 await pc.setLocalDescription(offer);
                 
@@ -1065,6 +1101,7 @@
             
             peers.clear();
             audioPlayers.clear();
+            reconnectAttempts.clear();
             if (reconnectTimer) clearTimeout(reconnectTimer);
             
             updatePeerStats();
@@ -1081,17 +1118,27 @@
         // ------------------------------------------------------------
         function updatePeerStats() {
             let connected = 0;
+            let checking = 0;
+            let failed = 0;
+            
             for (let pc of peers.values()) {
-                if (pc.connectionState === 'connected' || pc.iceConnectionState === 'connected') {
+                if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
                     connected++;
+                } else if (pc.iceConnectionState === 'checking') {
+                    checking++;
+                } else if (pc.iceConnectionState === 'failed') {
+                    failed++;
                 }
             }
-            peerCount.innerText = `${peers.size} (${connected} соед.)`;
+            
+            peerCount.innerText = `${peers.size} (${connected} соед., ${checking} проверка, ${failed} ошибок)`;
             
             if (connected > 0) {
                 peerStatus.className = 'status-dot green';
-            } else if (peers.size > 0) {
+            } else if (checking > 0) {
                 peerStatus.className = 'status-dot yellow';
+            } else if (failed > 0) {
+                peerStatus.className = 'status-dot red';
             } else {
                 peerStatus.className = 'status-dot gray';
             }
@@ -1104,23 +1151,28 @@
             connectionCheckInterval = setInterval(() => {
                 if (!isInRoom || !currentRoom) return;
                 
-                const memberCount = parseInt(document.getElementById('memberCount').innerText);
-                if (memberCount > 1 && peers.size === 0) {
+                const memberCountElement = document.getElementById('memberCount');
+                const currentMemberCount = parseInt(memberCountElement.innerText);
+                
+                if (currentMemberCount > 1 && peers.size === 0) {
                     log('⚠️ есть участники но нет пиров - пробуем переподключиться', 'warning');
                     forceReconnect();
                 }
                 
                 // Проверяем состояние каждого пира
                 peers.forEach((pc, id) => {
-                    if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-                        log(`пир ${id} в состоянии ${pc.iceConnectionState}, пробуем пересоздать`, 'warning');
+                    if (pc.iceConnectionState === 'failed') {
+                        log(`пир ${id} в состоянии failed, пробуем пересоздать`, 'warning');
                         peers.delete(id);
                         if (shouldCreateOffer(id)) {
                             createOffer(id);
                         }
+                    } else if (pc.iceConnectionState === 'disconnected') {
+                        log(`пир ${id} в состоянии disconnected, даем время на восстановление`, 'warning');
+                        // Не пересоздаем сразу, даем шанс на восстановление
                     }
                 });
-            }, 5000);
+            }, 3000);
         }
 
         // ------------------------------------------------------------
@@ -1174,7 +1226,7 @@
 
                 log(`участники: ${userIds.join(', ') || 'никого'}`, 'info');
 
-                // Создаём пиры для всех участников, даже если нет микрофона
+                // Создаём пиры для всех участников
                 userIds.forEach(async (uid) => {
                     if (uid === myUserId || !isInRoom) return;
                     
@@ -1196,6 +1248,7 @@
                                 audioPlayers.get(uid).element.remove();
                                 audioPlayers.delete(uid);
                             }
+                            reconnectAttempts.delete(uid);
                         } catch (err) {
                             log(`ошибка удаления пира: ${err.message}`, 'error');
                         }
@@ -1373,12 +1426,16 @@
         log(`ваш id: ${myUserId}`, 'info');
         updateDebugInfo();
         
-        // Принудительно пробуем включить звук каждые 3 секунды
+        // Принудительно пробуем включить звук каждые 2 секунды
         setInterval(() => {
             if (isInRoom && audioPlayers.size > 0) {
-                forcePlayAllAudio();
+                audioPlayers.forEach((data, userId) => {
+                    if (data.element.paused) {
+                        data.element.play().catch(err => {});
+                    }
+                });
             }
-        }, 3000);
+        }, 2000);
     </script>
 </body>
 </html>
